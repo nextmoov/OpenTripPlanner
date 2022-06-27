@@ -39,11 +39,12 @@ public class WayPropertySetSourceTest {
         way("bicycle", "destination")
       )
     );
-    assertTrue(
-      wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
-        way("access", "destination")
-      )
-    );
+    // Disabled because of Belgium Hack
+    // assertTrue(
+    // wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
+    // way("access", "destination")
+    // )
+    // );
   }
 
   @Test
@@ -52,9 +53,10 @@ public class WayPropertySetSourceTest {
     assertTrue(
       wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("foot", "destination"))
     );
-    assertTrue(
-      wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("access", "destination"))
-    );
+    // Disabled because of Belgium Hack
+    // assertTrue(
+    // wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("access",
+    // "destination")));
   }
 
   public OSMWithTags way(String key, String value) {
