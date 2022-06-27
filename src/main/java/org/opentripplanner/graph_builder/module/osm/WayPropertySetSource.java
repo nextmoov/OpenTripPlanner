@@ -4,14 +4,16 @@ import org.opentripplanner.openstreetmap.model.OSMWithTags;
 import org.opentripplanner.routing.core.intersection_model.IntersectionTraversalCostModel;
 
 /**
- * Interface for populating a {@link WayPropertySet} that determine how OSM streets can be traversed
+ * Interface for populating a {@link WayPropertySet} that determine how OSM
+ * streets can be traversed
  * in various modes and named.
  *
  * @author bdferris, novalis, seime
  */
 public interface WayPropertySetSource {
   /**
-   * Return the given WayPropertySetSource or throws IllegalArgumentException if an unknown type is
+   * Return the given WayPropertySetSource or throws IllegalArgumentException if
+   * an unknown type is
    * specified
    */
   static WayPropertySetSource fromConfig(String type) {
@@ -40,6 +42,15 @@ public interface WayPropertySetSource {
 
   IntersectionTraversalCostModel getIntersectionTraversalCostModel();
 
+  default boolean doesTagValueDisallowPedestrianThroughTraffic(String tagValue) {
+    return (
+      // In Belgium, access:destination is used to mark ways blocked to *cars*
+      // and not pedestrians.
+      // "destination".equals(tagValue) ||
+      "private".equals(tagValue) || "customers".equals(tagValue) || "delivery".equals(tagValue)
+    );
+  }
+
   default boolean doesTagValueDisallowThroughTraffic(String tagValue) {
     return (
       "destination".equals(tagValue) ||
@@ -51,7 +62,7 @@ public interface WayPropertySetSource {
 
   default boolean isGeneralNoThroughTraffic(OSMWithTags way) {
     String access = way.getTag("access");
-    return doesTagValueDisallowThroughTraffic(access);
+    return doesTagValueDisallowPedestrianThroughTraffic(access);
   }
 
   default boolean isVehicleThroughTrafficExplicitlyDisallowed(OSMWithTags way) {
@@ -91,12 +102,14 @@ public interface WayPropertySetSource {
 
   enum DrivingDirection {
     /**
-     * Specifies that cars go on the right hand side of the road. This is true for the US mainland
+     * Specifies that cars go on the right hand side of the road. This is true for
+     * the US mainland
      * Europe.
      */
     RIGHT_HAND_TRAFFIC,
     /**
-     * Specifies that cars go on the left hand side of the road. This is true for the UK, Japan and
+     * Specifies that cars go on the left hand side of the road. This is true for
+     * the UK, Japan and
      * Australia.
      */
     LEFT_HAND_TRAFFIC,
