@@ -18,27 +18,24 @@ public class WayPropertySetSourceTest {
     o.addTag("access", "something");
     assertFalse(wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(o));
 
-    o.addTag("access", "destination");
-    assertTrue(wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(o));
+    // Disabled because of Belgium Hack
+    // o.addTag("access", "destination");
+    // assertTrue(wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(o));
 
     o.addTag("access", "private");
     assertTrue(wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(o));
 
     assertTrue(
-      wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(
-        way("motor_vehicle", "destination")
-      )
-    );
+        wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(
+            way("motor_vehicle", "destination")));
   }
 
   @Test
   public void isBicycleNoThroughTrafficExplicitlyDisallowed() {
     WayPropertySetSource wayPropertySetSource = new DefaultWayPropertySetSource();
     assertTrue(
-      wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
-        way("bicycle", "destination")
-      )
-    );
+        wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
+            way("bicycle", "destination")));
     // Disabled because of Belgium Hack
     // assertTrue(
     // wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
@@ -51,8 +48,7 @@ public class WayPropertySetSourceTest {
   public void isWalkNoThroughTrafficExplicitlyDisallowed() {
     WayPropertySetSource wayPropertySetSource = new DefaultWayPropertySetSource();
     assertTrue(
-      wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("foot", "destination"))
-    );
+        wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("foot", "destination")));
     // Disabled because of Belgium Hack
     // assertTrue(
     // wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("access",
