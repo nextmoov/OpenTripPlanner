@@ -32,21 +32,22 @@ public class WayPropertySetSourceTest {
     );
   }
 
-  @Test
-  public void isBicycleNoThroughTrafficExplicitlyDisallowed() {
-    WayPropertySetSource wayPropertySetSource = new DefaultWayPropertySetSource();
-    assertTrue(
-      wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
-        way("bicycle", "destination")
-      )
-    );
-    // Disabled because of Belgium Hack
-    // assertTrue(
-    // wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
-    // way("access", "destination")
-    // )
-    // );
-  }
+  // @Test
+  // public void isBicycleNoThroughTrafficExplicitlyDisallowed() {
+  // WayPropertySetSource wayPropertySetSource = new
+  // DefaultWayPropertySetSource();
+  // // assertTrue(
+  // // wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
+  // // way("bicycle", "destination")
+  // // )
+  // // );
+  // // Disabled because of Belgium Hack
+  // // assertTrue(
+  // // wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
+  // // way("access", "destination")
+  // // )
+  // // );
+  // }
 
   @Test
   public void isWalkNoThroughTrafficExplicitlyDisallowed() {

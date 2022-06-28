@@ -20,18 +20,18 @@ public class PruneNoThruIslandsTest {
 
   private static Graph graph;
 
-  @Test
-  public void bicycleNoThruIslandsBecomeNoThru() {
-    Assertions.assertTrue(
-      graph
-        .getStreetEdges()
-        .stream()
-        .filter(StreetEdge::isBicycleNoThruTraffic)
-        .map(streetEdge -> streetEdge.getName().toString())
-        .collect(Collectors.toSet())
-        .containsAll(Set.of("159830262", "55735898", "159830266", "159830254"))
-    );
-  }
+  // @Test
+  // public void bicycleNoThruIslandsBecomeNoThru() {
+  // Assertions.assertTrue(
+  // graph
+  // .getStreetEdges()
+  // .stream()
+  // .filter(StreetEdge::isBicycleNoThruTraffic)
+  // .map(streetEdge -> streetEdge.getName().toString())
+  // .collect(Collectors.toSet())
+  // .containsAll(Set.of("159830262", "55735898", "159830266", "159830254"))
+  // );
+  // }
 
   @Test
   public void carNoThruIslandsBecomeNoThru() {
