@@ -44,17 +44,20 @@ public interface WayPropertySetSource {
 
   default boolean doesTagValueDisallowPedestrianThroughTraffic(String tagValue) {
     return (
-    // In Belgium, access:destination is used to mark ways blocked to *cars*
-    // and not pedestrians.
-    // "destination".equals(tagValue) ||
-    "private".equals(tagValue) || "customers".equals(tagValue) || "delivery".equals(tagValue));
+      // In Belgium, access:destination is used to mark ways blocked to *cars*
+      // and not pedestrians.
+      // "destination".equals(tagValue) ||
+      "private".equals(tagValue) || "customers".equals(tagValue) || "delivery".equals(tagValue)
+    );
   }
 
   default boolean doesTagValueDisallowThroughTraffic(String tagValue) {
-    return ("destination".equals(tagValue) ||
-        "private".equals(tagValue) ||
-        "customers".equals(tagValue) ||
-        "delivery".equals(tagValue));
+    return (
+      "destination".equals(tagValue) ||
+      "private".equals(tagValue) ||
+      "customers".equals(tagValue) ||
+      "delivery".equals(tagValue)
+    );
   }
 
   default boolean isGeneralNoThroughTraffic(OSMWithTags way) {
@@ -77,8 +80,10 @@ public interface WayPropertySetSource {
    */
   default boolean isMotorVehicleThroughTrafficExplicitlyDisallowed(OSMWithTags way) {
     String motorVehicle = way.getTag("motor_vehicle");
-    return (isVehicleThroughTrafficExplicitlyDisallowed(way) ||
-        doesTagValueDisallowThroughTraffic(motorVehicle));
+    return (
+      isVehicleThroughTrafficExplicitlyDisallowed(way) ||
+      doesTagValueDisallowThroughTraffic(motorVehicle)
+    );
   }
 
   /**
@@ -86,8 +91,10 @@ public interface WayPropertySetSource {
    */
   default boolean isBicycleNoThroughTrafficExplicitlyDisallowed(OSMWithTags way) {
     String bicycle = way.getTag("bicycle");
-    return (isVehicleThroughTrafficExplicitlyDisallowed(way) ||
-        doesTagValueDisallowPedestrianThroughTraffic(bicycle));
+    return (
+      isVehicleThroughTrafficExplicitlyDisallowed(way) ||
+      doesTagValueDisallowPedestrianThroughTraffic(bicycle)
+    );
   }
 
   /**
