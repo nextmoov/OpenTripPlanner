@@ -80,19 +80,16 @@ public class BicycleRoutingTest {
     var paths = gpf.graphPathFinderEntryPoint(routingContext);
 
     GraphPathToItineraryMapper graphPathToItineraryMapper = new GraphPathToItineraryMapper(
-      graph.getTimeZone(),
-      new AlertToLegMapper(graph.getTransitAlertService()),
-      graph.streetNotesService,
-      graph.ellipsoidToGeoidDifference
-    );
+        graph.getTimeZone(),
+        new AlertToLegMapper(graph.getTransitAlertService()),
+        graph.streetNotesService,
+        graph.ellipsoidToGeoidDifference);
 
     var itineraries = graphPathToItineraryMapper.mapItineraries(paths);
     temporaryVertices.close();
 
     // make sure that we only get BICYLE legs
-    itineraries.forEach(i ->
-      i.getLegs().forEach(l -> Assertions.assertEquals(l.getMode(), TraverseMode.BICYCLE))
-    );
+    itineraries.forEach(i -> i.getLegs().forEach(l -> Assertions.assertEquals(l.getMode(), TraverseMode.BICYCLE)));
     Geometry legGeometry = itineraries.get(0).getLegs().get(0).getLegGeometry();
     return PolylineEncoder.encodeGeometry(legGeometry).points();
   }
