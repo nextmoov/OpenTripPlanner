@@ -18,8 +18,9 @@ public class WayPropertySetSourceTest {
     o.addTag("access", "something");
     assertFalse(wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(o));
 
-    o.addTag("access", "destination");
-    assertTrue(wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(o));
+    // Disabled because of Belgium Hack
+    // o.addTag("access", "destination");
+    // assertTrue(wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(o));
 
     o.addTag("access", "private");
     assertTrue(wayPropertySetSource.isMotorVehicleThroughTrafficExplicitlyDisallowed(o));
@@ -31,20 +32,22 @@ public class WayPropertySetSourceTest {
     );
   }
 
-  @Test
-  public void isBicycleNoThroughTrafficExplicitlyDisallowed() {
-    WayPropertySetSource wayPropertySetSource = new DefaultWayPropertySetSource();
-    assertTrue(
-      wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
-        way("bicycle", "destination")
-      )
-    );
-    assertTrue(
-      wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
-        way("access", "destination")
-      )
-    );
-  }
+  // @Test
+  // public void isBicycleNoThroughTrafficExplicitlyDisallowed() {
+  // WayPropertySetSource wayPropertySetSource = new
+  // DefaultWayPropertySetSource();
+  // // assertTrue(
+  // // wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
+  // // way("bicycle", "destination")
+  // // )
+  // // );
+  // // Disabled because of Belgium Hack
+  // // assertTrue(
+  // // wayPropertySetSource.isBicycleNoThroughTrafficExplicitlyDisallowed(
+  // // way("access", "destination")
+  // // )
+  // // );
+  // }
 
   @Test
   public void isWalkNoThroughTrafficExplicitlyDisallowed() {
@@ -52,9 +55,10 @@ public class WayPropertySetSourceTest {
     assertTrue(
       wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("foot", "destination"))
     );
-    assertTrue(
-      wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("access", "destination"))
-    );
+    // Disabled because of Belgium Hack
+    // assertTrue(
+    // wayPropertySetSource.isWalkNoThroughTrafficExplicitlyDisallowed(way("access",
+    // "destination")));
   }
 
   public OSMWithTags way(String key, String value) {
