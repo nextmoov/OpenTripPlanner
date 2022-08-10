@@ -19,8 +19,8 @@ import org.opentripplanner.ext.transmodelapi.model.EnumTypes;
 import org.opentripplanner.ext.transmodelapi.support.GqlUtil;
 import org.opentripplanner.routing.alertpatch.EntitySelector;
 import org.opentripplanner.routing.alertpatch.TransitAlert;
+import org.opentripplanner.transit.model.basic.TranslatedString;
 import org.opentripplanner.transit.service.TransitService;
-import org.opentripplanner.util.TranslatedString;
 
 public class PtSituationElementType {
 
@@ -57,8 +57,8 @@ public class PtSituationElementType {
           .name("authority")
           .type(authorityType)
           .description("Get affected authority for this situation element")
-          .dataFetcher(environment -> {
-            return GqlUtil
+          .dataFetcher(environment ->
+            GqlUtil
               .getTransitService(environment)
               .getAgencyForId(
                 ((TransitAlert) environment.getSource()).getEntities()
@@ -68,8 +68,8 @@ public class PtSituationElementType {
                   .findAny()
                   .map(entitySelector -> entitySelector.agencyId)
                   .orElse(null)
-              );
-          })
+              )
+          )
           .build()
       )
       .field(
@@ -84,7 +84,7 @@ public class PtSituationElementType {
               .filter(EntitySelector.Route.class::isInstance)
               .map(EntitySelector.Route.class::cast)
               .map(entitySelector -> entitySelector.routeId)
-              .map(routeId -> transitService.getRouteForId(routeId))
+              .map(transitService::getRouteForId)
               .collect(Collectors.toList());
           })
           .build()
@@ -101,7 +101,7 @@ public class PtSituationElementType {
               .filter(EntitySelector.Trip.class::isInstance)
               .map(EntitySelector.Trip.class::cast)
               .map(entitySelector -> entitySelector.tripId)
-              .map(tripId -> transitService.getTripForId().get(tripId))
+              .map(transitService::getTripForId)
               .collect(Collectors.toList());
           })
           .build()
@@ -118,7 +118,7 @@ public class PtSituationElementType {
               .filter(EntitySelector.Stop.class::isInstance)
               .map(EntitySelector.Stop.class::cast)
               .map(entitySelector -> entitySelector.stopId)
-              .map(stopId -> transitService.getStopForId(stopId))
+              .map(transitService::getStopForId)
               .collect(Collectors.toList());
           })
           .build()
@@ -216,10 +216,10 @@ public class PtSituationElementType {
           .dataFetcher(environment -> {
             TransitAlert alert = environment.getSource();
             Long startTime = alert.getEffectiveStartDate() != null
-              ? alert.getEffectiveStartDate().getTime()
+              ? alert.getEffectiveStartDate().toEpochMilli()
               : null;
             Long endTime = alert.getEffectiveEndDate() != null
-              ? alert.getEffectiveEndDate().getTime()
+              ? alert.getEffectiveEndDate().toEpochMilli()
               : null;
             return Pair.of(startTime, endTime);
           })
@@ -270,8 +270,8 @@ public class PtSituationElementType {
           .type(authorityType)
           .description("Authority that reported this situation")
           .deprecate("Not yet officially supported. May be removed or renamed.")
-          .dataFetcher(environment -> {
-            return GqlUtil
+          .dataFetcher(environment ->
+            GqlUtil
               .getTransitService(environment)
               .getAgencyForId(
                 ((TransitAlert) environment.getSource()).getEntities()
@@ -281,8 +281,8 @@ public class PtSituationElementType {
                   .findAny()
                   .map(entitySelector -> entitySelector.agencyId)
                   .orElse(null)
-              );
-          })
+              )
+          )
           .build()
       )
       .build();

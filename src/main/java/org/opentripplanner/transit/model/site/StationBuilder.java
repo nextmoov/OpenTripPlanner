@@ -1,10 +1,10 @@
 package org.opentripplanner.transit.model.site;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
+import org.opentripplanner.transit.model.basic.I18NString;
 import org.opentripplanner.transit.model.basic.WgsCoordinate;
 import org.opentripplanner.transit.model.framework.AbstractEntityBuilder;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
-import org.opentripplanner.util.I18NString;
 
 public class StationBuilder extends AbstractEntityBuilder<Station, StationBuilder> {
 
@@ -14,7 +14,7 @@ public class StationBuilder extends AbstractEntityBuilder<Station, StationBuilde
   private WgsCoordinate coordinate;
   private StopTransferPriority priority;
   private I18NString url;
-  private TimeZone timezone;
+  private ZoneId timezone;
 
   StationBuilder(FeedScopedId id) {
     super(id);
@@ -90,11 +90,11 @@ public class StationBuilder extends AbstractEntityBuilder<Station, StationBuilde
     return this;
   }
 
-  public TimeZone getTimezone() {
+  public ZoneId getTimezone() {
     return timezone;
   }
 
-  public StationBuilder withTimezone(TimeZone timezone) {
+  public StationBuilder withTimezone(ZoneId timezone) {
     this.timezone = timezone;
     return this;
   }

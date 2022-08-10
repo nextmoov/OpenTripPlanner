@@ -10,18 +10,19 @@ import java.time.LocalDate;
 import java.time.Month;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.GregorianCalendar;
 import java.util.List;
-import org.opentripplanner.model.StopPattern;
 import org.opentripplanner.model.StopTime;
-import org.opentripplanner.model.TripPattern;
+import org.opentripplanner.model.transfer.ConstrainedTransfer;
+import org.opentripplanner.model.transfer.TransferConstraint;
 import org.opentripplanner.routing.core.TraverseMode;
-import org.opentripplanner.routing.trippattern.Deduplicator;
-import org.opentripplanner.routing.trippattern.TripTimes;
 import org.opentripplanner.transit.model._data.TransitModelForTest;
+import org.opentripplanner.transit.model.basic.TransitMode;
+import org.opentripplanner.transit.model.framework.Deduplicator;
 import org.opentripplanner.transit.model.network.Route;
-import org.opentripplanner.transit.model.network.TransitMode;
+import org.opentripplanner.transit.model.network.StopPattern;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.model.timetable.Trip;
+import org.opentripplanner.transit.model.timetable.TripTimes;
 import org.opentripplanner.util.time.TimeUtils;
 
 /**
@@ -73,9 +74,7 @@ public class TestItineraryBuilder implements PlanTestConstants {
   }
 
   /**
-   * The itinerary uses the old Java Calendar, but we would like to migrate to the new java.time
-   * library; Hence this method is already changed. To convert into the legacy Calendar use
-   * {@link GregorianCalendar#from(ZonedDateTime)} method.
+   * Convert a seconds since midnight to a ZonedDateTime
    */
   public static ZonedDateTime newTime(int seconds) {
     return TimeUtils.zonedDateTime(SERVICE_DAY, seconds, UTC);
@@ -143,12 +142,28 @@ public class TestItineraryBuilder implements PlanTestConstants {
       toStopIndex,
       to,
       serviceDate,
+      null,
       null
     );
   }
 
   public TestItineraryBuilder bus(int tripId, int startTime, int endTime, Place to) {
     return bus(tripId, startTime, endTime, TRIP_FROM_STOP_INDEX, TRIP_TO_STOP_INDEX, to, null);
+  }
+
+  public TestItineraryBuilder bus(Route route, int tripId, int startTime, int endTime, Place to) {
+    return transit(
+      route,
+      tripId,
+      startTime,
+      endTime,
+      TRIP_FROM_STOP_INDEX,
+      TRIP_TO_STOP_INDEX,
+      to,
+      null,
+      null,
+      null
+    );
   }
 
   public TestItineraryBuilder bus(
@@ -182,6 +197,7 @@ public class TestItineraryBuilder implements PlanTestConstants {
       TRIP_TO_STOP_INDEX,
       to,
       null,
+      null,
       null
     );
   }
@@ -207,7 +223,29 @@ public class TestItineraryBuilder implements PlanTestConstants {
       TRIP_TO_STOP_INDEX,
       to,
       null,
-      600
+      600,
+      null
+    );
+  }
+
+  public TestItineraryBuilder staySeatedBus(
+    Route route,
+    int tripId,
+    int startTime,
+    int endTime,
+    Place to
+  ) {
+    return transit(
+      route,
+      tripId,
+      startTime,
+      endTime,
+      TRIP_FROM_STOP_INDEX,
+      TRIP_TO_STOP_INDEX,
+      to,
+      null,
+      null,
+      new ConstrainedTransfer(null, null, null, TransferConstraint.create().staySeated().build())
     );
   }
 
@@ -231,7 +269,8 @@ public class TestItineraryBuilder implements PlanTestConstants {
     int toStopIndex,
     Place to,
     LocalDate serviceDate,
-    Integer headwaySecs
+    Integer headwaySecs,
+    ConstrainedTransfer transferFromPreviousLeg
   ) {
     if (lastPlace == null) {
       throw new IllegalStateException("Trip from place is unknown!");
@@ -264,7 +303,11 @@ public class TestItineraryBuilder implements PlanTestConstants {
     stopTimes.add(toStopTime);
 
     StopPattern stopPattern = new StopPattern(stopTimes);
-    TripPattern tripPattern = new TripPattern(route.getId(), route, stopPattern);
+    TripPattern tripPattern = TripPattern
+      .of(route.getId())
+      .withRoute(route)
+      .withStopPattern(stopPattern)
+      .build();
     final TripTimes tripTimes = new TripTimes(trip, stopTimes, new Deduplicator());
     tripPattern.add(tripTimes);
 
@@ -281,7 +324,7 @@ public class TestItineraryBuilder implements PlanTestConstants {
           newTime(end),
           serviceDate != null ? serviceDate : SERVICE_DAY,
           UTC,
-          null,
+          transferFromPreviousLeg,
           null,
           legCost,
           headwaySecs,
@@ -298,7 +341,7 @@ public class TestItineraryBuilder implements PlanTestConstants {
           newTime(end),
           serviceDate != null ? serviceDate : SERVICE_DAY,
           UTC,
-          null,
+          transferFromPreviousLeg,
           null,
           legCost,
           null

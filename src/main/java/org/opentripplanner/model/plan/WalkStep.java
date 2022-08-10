@@ -1,6 +1,5 @@
 package org.opentripplanner.model.plan;
 
-import com.google.common.collect.Lists;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -10,8 +9,8 @@ import org.opentripplanner.common.model.P2;
 import org.opentripplanner.model.StreetNote;
 import org.opentripplanner.model.VehicleRentalStationInfo;
 import org.opentripplanner.routing.graph.Edge;
+import org.opentripplanner.transit.model.basic.I18NString;
 import org.opentripplanner.transit.model.basic.WgsCoordinate;
-import org.opentripplanner.util.I18NString;
 import org.opentripplanner.util.lang.DoubleUtils;
 
 /**
@@ -50,7 +49,7 @@ public class WalkStep {
   private List<P2<Double>> elevation;
   private Boolean stayOn = false;
 
-  private List<Edge> edges = Lists.newArrayList();
+  private List<Edge> edges = new ArrayList<>();
 
   private VehicleRentalStationInfo vehicleRentalOnStation;
 

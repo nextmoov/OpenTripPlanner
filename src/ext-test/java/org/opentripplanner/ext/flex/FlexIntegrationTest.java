@@ -3,25 +3,25 @@ package org.opentripplanner.ext.flex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.opentripplanner.graph_builder.DataImportIssueStore.noopIssueStore;
 import static org.opentripplanner.graph_builder.module.FakeGraph.getFileForResource;
 import static org.opentripplanner.routing.api.request.StreetMode.FLEXIBLE;
 import static org.opentripplanner.routing.core.TraverseMode.BUS;
 import static org.opentripplanner.routing.core.TraverseMode.WALK;
 
-import io.micrometer.core.instrument.Metrics;
 import java.io.File;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.opentripplanner.ConstantsForTests;
+import org.opentripplanner.TestOtpModel;
+import org.opentripplanner.TestServerContext;
 import org.opentripplanner.graph_builder.model.GtfsBundle;
 import org.opentripplanner.graph_builder.module.DirectTransferGenerator;
 import org.opentripplanner.graph_builder.module.GtfsModule;
@@ -33,8 +33,7 @@ import org.opentripplanner.routing.RoutingService;
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.core.TraverseMode;
 import org.opentripplanner.routing.graph.Graph;
-import org.opentripplanner.standalone.config.RouterConfig;
-import org.opentripplanner.standalone.server.Router;
+import org.opentripplanner.transit.service.TransitModel;
 import org.opentripplanner.util.OTPFeature;
 
 /**
@@ -47,8 +46,26 @@ public class FlexIntegrationTest {
     .toInstant();
 
   static Graph graph;
+
+  static TransitModel transitModel;
+
   static RoutingService service;
-  static Router router;
+
+  @BeforeAll
+  static void setup() {
+    OTPFeature.enableFeatures(Map.of(OTPFeature.FlexRouting, true));
+    var osmPath = getAbsolutePath(FlexTest.COBB_OSM);
+    var cobblincGtfsPath = getAbsolutePath(FlexTest.COBB_BUS_30_GTFS);
+    var martaGtfsPath = getAbsolutePath(FlexTest.MARTA_BUS_856_GTFS);
+    var flexGtfsPath = getAbsolutePath(FlexTest.COBB_FLEX_GTFS);
+
+    TestOtpModel model = ConstantsForTests.buildOsmGraph(osmPath);
+    graph = model.graph();
+    transitModel = model.transitModel();
+
+    addGtfsToGraph(graph, transitModel, List.of(cobblincGtfsPath, martaGtfsPath, flexGtfsPath));
+    service = TestServerContext.createServerContext(graph, transitModel).routingService();
+  }
 
   @Test
   public void shouldReturnARouteTransferringFromBusToFlex() {
@@ -73,6 +90,11 @@ public class FlexIntegrationTest {
     assertEquals(BUS, flex.getMode());
     assertEquals("Zone 2", flex.getRoute().getShortName());
     assertTrue(flex.isFlexibleTrip());
+    assertEquals(
+      "corner of Story Place Southwest and service road (part of Flex Zone 2)",
+      flex.getFrom().name.toString()
+    );
+    assertEquals("Destination (part of Flex Zone 2)", flex.getTo().name.toString());
   }
 
   @Test
@@ -126,23 +148,10 @@ public class FlexIntegrationTest {
     assertEquals("Zone 2", flex.getRoute().getShortName());
     assertTrue(flex.isFlexibleTrip());
 
+    assertEquals("Transfer Point for Route 30", flex.getFrom().name.toString());
+    assertEquals("Destination (part of Flex Zone 2)", flex.getTo().name.toString());
+
     assertEquals("2021-12-02T13:00-05:00[America/New_York]", flex.getStartTime().toString());
-  }
-
-  @BeforeAll
-  static void setup() {
-    OTPFeature.enableFeatures(Map.of(OTPFeature.FlexRouting, true));
-    var osmPath = getAbsolutePath(FlexTest.COBB_OSM);
-    var cobblincGtfsPath = getAbsolutePath(FlexTest.COBB_BUS_30_GTFS);
-    var martaGtfsPath = getAbsolutePath(FlexTest.MARTA_BUS_856_GTFS);
-    var flexGtfsPath = getAbsolutePath(FlexTest.COBB_FLEX_GTFS);
-
-    graph = ConstantsForTests.buildOsmGraph(osmPath);
-    addGtfsToGraph(graph, List.of(cobblincGtfsPath, martaGtfsPath, flexGtfsPath));
-    router = new Router(graph, RouterConfig.DEFAULT, Metrics.globalRegistry);
-    router.startup();
-
-    service = new RoutingService(graph);
   }
 
   @AfterAll
@@ -158,32 +167,41 @@ public class FlexIntegrationTest {
     }
   }
 
-  private static void addGtfsToGraph(Graph graph, List<String> gtfsFiles) {
-    var extra = new HashMap<Class<?>, Object>();
-
+  private static void addGtfsToGraph(
+    Graph graph,
+    TransitModel transitModel,
+    List<String> gtfsFiles
+  ) {
     // GTFS
-    var gtfsBundles = gtfsFiles
-      .stream()
-      .map(f -> new GtfsBundle(new File(f)))
-      .collect(Collectors.toList());
-    GtfsModule gtfsModule = new GtfsModule(gtfsBundles, ServiceDateInterval.unbounded());
-    gtfsModule.buildGraph(graph, extra);
+    var gtfsBundles = gtfsFiles.stream().map(f -> new GtfsBundle(new File(f))).toList();
+    GtfsModule gtfsModule = new GtfsModule(
+      gtfsBundles,
+      transitModel,
+      graph,
+      ServiceDateInterval.unbounded()
+    );
+    gtfsModule.buildGraph();
 
     // link stations to streets
-    StreetLinkerModule streetLinkerModule = new StreetLinkerModule();
-    streetLinkerModule.buildGraph(graph, extra);
+    StreetLinkerModule.linkStreetsForTestOnly(graph, transitModel);
 
     // link flex locations to streets
-    var flexMapper = new FlexLocationsToStreetEdgesMapper();
-    flexMapper.buildGraph(graph, new HashMap<>());
+    new FlexLocationsToStreetEdgesMapper(graph, transitModel).buildGraph();
 
     // generate direct transfers
     var req = new RoutingRequest();
 
     // we don't have a complete coverage of the entire area so use straight lines for transfers
-    var transfers = new DirectTransferGenerator(Duration.ofMinutes(10), List.of(req));
-    transfers.buildGraph(graph, extra);
+    new DirectTransferGenerator(
+      graph,
+      transitModel,
+      noopIssueStore(),
+      Duration.ofMinutes(10),
+      List.of(req)
+    )
+      .buildGraph();
 
+    transitModel.index();
     graph.index();
   }
 
@@ -213,7 +231,7 @@ public class FlexIntegrationTest {
     }
     request.modes = modes.build();
 
-    var result = service.route(request, router);
+    var result = service.route(request);
     var itineraries = result.getTripPlan().itineraries;
 
     assertFalse(itineraries.isEmpty());

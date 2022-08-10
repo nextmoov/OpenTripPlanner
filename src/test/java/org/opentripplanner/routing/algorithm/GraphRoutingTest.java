@@ -7,9 +7,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.locationtech.jts.geom.Coordinate;
-import org.opentripplanner.common.geometry.GeometryUtils;
+import org.opentripplanner.TestOtpModel;
 import org.opentripplanner.model.StopTime;
-import org.opentripplanner.model.TripPattern;
 import org.opentripplanner.routing.algorithm.astar.AStarBuilder;
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.core.RoutingContext;
@@ -45,17 +44,24 @@ import org.opentripplanner.routing.vertextype.StreetVertex;
 import org.opentripplanner.routing.vertextype.TemporaryVertex;
 import org.opentripplanner.routing.vertextype.TransitEntranceVertex;
 import org.opentripplanner.routing.vertextype.TransitStopVertex;
+import org.opentripplanner.routing.vertextype.TransitStopVertexBuilder;
 import org.opentripplanner.routing.vertextype.VehicleParkingEntranceVertex;
 import org.opentripplanner.routing.vertextype.VehicleRentalPlaceVertex;
 import org.opentripplanner.transit.model._data.TransitModelForTest;
+import org.opentripplanner.transit.model.basic.NonLocalizedString;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.basic.WheelchairAccessibility;
+import org.opentripplanner.transit.model.framework.Deduplicator;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.network.Route;
-import org.opentripplanner.transit.model.network.TransitMode;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.model.organization.Agency;
 import org.opentripplanner.transit.model.site.Entrance;
+import org.opentripplanner.transit.model.site.PathwayMode;
 import org.opentripplanner.transit.model.site.Stop;
-import org.opentripplanner.util.NonLocalizedString;
+import org.opentripplanner.transit.service.StopModel;
+import org.opentripplanner.transit.service.TransitModel;
+import org.opentripplanner.util.geometry.GeometryUtils;
 
 public abstract class GraphRoutingTest {
 
@@ -74,8 +80,13 @@ public abstract class GraphRoutingTest {
       .collect(Collectors.joining(" - "));
   }
 
-  protected Graph graphOf(Builder builder) {
-    return builder.graph();
+  protected TestOtpModel modelOf(Builder builder) {
+    builder.build();
+    Graph graph = builder.graph();
+    TransitModel transitModel = builder.transitModel();
+    transitModel.index();
+    graph.index();
+    return new TestOtpModel(graph, transitModel);
   }
 
   protected GraphPath routeParkAndRide(
@@ -93,13 +104,24 @@ public abstract class GraphRoutingTest {
 
   public abstract static class Builder {
 
-    private final Graph graph = new Graph();
+    private final Graph graph;
+    private final TransitModel transitModel;
+
+    protected Builder() {
+      var deduplicator = new Deduplicator();
+      var stopModel = new StopModel();
+      graph = new Graph(stopModel, deduplicator);
+      transitModel = new TransitModel(stopModel, deduplicator);
+    }
 
     public abstract void build();
 
     public Graph graph() {
-      build();
       return graph;
+    }
+
+    public TransitModel transitModel() {
+      return transitModel;
     }
 
     public <T> T v(String label) {
@@ -220,7 +242,11 @@ public abstract class GraphRoutingTest {
     }
 
     public TransitStopVertex stop(String id, double latitude, double longitude) {
-      return new TransitStopVertex(graph, stopEntity(id, latitude, longitude), null);
+      return new TransitStopVertexBuilder()
+        .withGraph(graph)
+        .withStop(stopEntity(id, latitude, longitude))
+        .withTransitModel(transitModel)
+        .build();
     }
 
     public TransitEntranceVertex entrance(String id, double latitude, double longitude) {
@@ -263,7 +289,8 @@ public abstract class GraphRoutingTest {
         length,
         0,
         0,
-        false
+        false,
+        PathwayMode.WALKWAY
       );
     }
 
@@ -427,7 +454,7 @@ public abstract class GraphRoutingTest {
 
     // Transit
     public void tripPattern(TripPattern tripPattern) {
-      graph.tripPatternForId.put(tripPattern.getId(), tripPattern);
+      transitModel.addTripPattern(tripPattern.getId(), tripPattern);
     }
 
     public StopTime st(TransitStopVertex s1) {

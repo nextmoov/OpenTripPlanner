@@ -2,15 +2,15 @@ package org.opentripplanner.routing.vehicle_rental;
 
 import static java.util.Locale.ROOT;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.locationtech.jts.geom.Geometry;
 import org.opentripplanner.routing.vehicle_rental.RentalVehicleType.FormFactor;
+import org.opentripplanner.transit.model.basic.I18NString;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
-import org.opentripplanner.util.I18NString;
 
 /**
  * Implements the {@link VehicleRentalPlace} class which contains Javadoc.
@@ -48,7 +48,7 @@ public class VehicleRentalStation implements VehicleRentalPlace {
   public boolean isInstalled = true;
   public boolean isRenting = true;
   public boolean isReturning = true;
-  public ZonedDateTime lastReported;
+  public Instant lastReported;
 
   // OTP internal data
   public boolean allowOverloading = false;

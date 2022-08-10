@@ -1,19 +1,19 @@
 /* This file is based on code copied from project OneBusAway, see the LICENSE file for further information. */
 package org.opentripplanner.transit.model.site;
 
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.locationtech.jts.geom.Geometry;
-import org.opentripplanner.common.geometry.GeometryUtils;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.transit.model.basic.SubMode;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
-import org.opentripplanner.transit.model.network.SubMode;
-import org.opentripplanner.transit.model.network.TransitMode;
-import org.opentripplanner.util.I18NString;
+import org.opentripplanner.util.geometry.GeometryUtils;
 
 /**
  * A place where actual boarding/departing happens. It can be a bus stop on one side of a road or a
@@ -25,7 +25,7 @@ public final class Stop extends StationElement<Stop, StopBuilder> implements Sto
 
   private final I18NString url;
 
-  private final TimeZone timeZone;
+  private final ZoneId timeZone;
 
   private final TransitMode gtfsVehicleType;
 
@@ -74,7 +74,7 @@ public final class Stop extends StationElement<Stop, StopBuilder> implements Sto
 
   @Override
   @Nullable
-  public TimeZone getTimeZone() {
+  public ZoneId getTimeZone() {
     return timeZone;
   }
 
@@ -94,7 +94,7 @@ public final class Stop extends StationElement<Stop, StopBuilder> implements Sto
   }
 
   @Override
-  @Nullable
+  @Nonnull
   public Geometry getGeometry() {
     return GeometryUtils.getGeometryFactory().createPoint(getCoordinate().asJtsCoordinate());
   }

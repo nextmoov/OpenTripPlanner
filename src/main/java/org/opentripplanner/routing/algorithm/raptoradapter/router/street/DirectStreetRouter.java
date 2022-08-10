@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.List;
 import org.opentripplanner.common.geometry.SphericalDistanceLibrary;
 import org.opentripplanner.model.plan.Itinerary;
-import org.opentripplanner.routing.algorithm.mapping.AlertToLegMapper;
 import org.opentripplanner.routing.algorithm.mapping.GraphPathToItineraryMapper;
 import org.opentripplanner.routing.algorithm.mapping.ItinerariesHelper;
 import org.opentripplanner.routing.api.request.RoutingRequest;
@@ -14,22 +13,22 @@ import org.opentripplanner.routing.core.TemporaryVerticesContainer;
 import org.opentripplanner.routing.error.PathNotFoundException;
 import org.opentripplanner.routing.impl.GraphPathFinder;
 import org.opentripplanner.routing.spt.GraphPath;
-import org.opentripplanner.standalone.server.Router;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.opentripplanner.standalone.api.OtpServerContext;
 
 public class DirectStreetRouter {
 
-  public static List<Itinerary> route(Router router, RoutingRequest request) {
+  public static List<Itinerary> route(OtpServerContext serverContext, RoutingRequest request) {
     if (request.modes.directMode == StreetMode.NOT_SET) {
       return Collections.emptyList();
     }
 
     RoutingRequest directRequest = request.getStreetSearchRequest(request.modes.directMode);
-    try (var temporaryVertices = new TemporaryVerticesContainer(router.graph, directRequest)) {
+    try (
+      var temporaryVertices = new TemporaryVerticesContainer(serverContext.graph(), directRequest)
+    ) {
       final RoutingContext routingContext = new RoutingContext(
         directRequest,
-        router.graph,
+        serverContext.graph(),
         temporaryVertices
       );
 
@@ -38,15 +37,17 @@ public class DirectStreetRouter {
       }
 
       // we could also get a persistent router-scoped GraphPathFinder but there's no setup cost here
-      GraphPathFinder gpFinder = new GraphPathFinder(router);
+      GraphPathFinder gpFinder = new GraphPathFinder(
+        serverContext.traverseVisitor(),
+        serverContext.routerConfig().streetRoutingTimeout()
+      );
       List<GraphPath> paths = gpFinder.graphPathFinderEntryPoint(routingContext);
 
       // Convert the internal GraphPaths to itineraries
       final GraphPathToItineraryMapper graphPathToItineraryMapper = new GraphPathToItineraryMapper(
-        router.graph.getTimeZone(),
-        new AlertToLegMapper(router.graph.getTransitAlertService()),
-        router.graph.streetNotesService,
-        router.graph.ellipsoidToGeoidDifference
+        serverContext.transitService().getTimeZone(),
+        serverContext.graph().streetNotesService,
+        serverContext.graph().ellipsoidToGeoidDifference
       );
       List<Itinerary> response = graphPathToItineraryMapper.mapItineraries(paths);
       ItinerariesHelper.decorateItinerariesWithRequestData(response, request);

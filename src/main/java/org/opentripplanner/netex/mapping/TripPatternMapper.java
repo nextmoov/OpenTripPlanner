@@ -7,26 +7,24 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import javax.xml.bind.JAXBElement;
 import org.opentripplanner.graph_builder.DataImportIssueStore;
-import org.opentripplanner.model.FlexLocationGroup;
-import org.opentripplanner.model.FlexStopLocation;
-import org.opentripplanner.model.StopPattern;
-import org.opentripplanner.model.StopTime;
-import org.opentripplanner.model.TripOnServiceDate;
-import org.opentripplanner.model.TripPattern;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.model.impl.EntityById;
 import org.opentripplanner.netex.index.api.ReadOnlyHierarchicalMap;
 import org.opentripplanner.netex.index.api.ReadOnlyHierarchicalMapById;
 import org.opentripplanner.netex.mapping.support.FeedScopedIdFactory;
-import org.opentripplanner.routing.trippattern.Deduplicator;
-import org.opentripplanner.routing.trippattern.TripTimes;
+import org.opentripplanner.transit.model.framework.Deduplicator;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
+import org.opentripplanner.transit.model.network.StopPattern;
+import org.opentripplanner.transit.model.network.TripPattern;
+import org.opentripplanner.transit.model.network.TripPatternBuilder;
 import org.opentripplanner.transit.model.organization.Operator;
+import org.opentripplanner.transit.model.site.FlexLocationGroup;
+import org.opentripplanner.transit.model.site.FlexStopLocation;
 import org.opentripplanner.transit.model.site.Stop;
 import org.opentripplanner.transit.model.timetable.Trip;
+import org.opentripplanner.transit.model.timetable.TripOnServiceDate;
+import org.opentripplanner.transit.model.timetable.TripTimes;
 import org.rutebanken.netex.model.DatedServiceJourney;
 import org.rutebanken.netex.model.DatedServiceJourneyRefStructure;
 import org.rutebanken.netex.model.DestinationDisplay;
@@ -35,6 +33,7 @@ import org.rutebanken.netex.model.JourneyPattern;
 import org.rutebanken.netex.model.OperatingDay;
 import org.rutebanken.netex.model.Route;
 import org.rutebanken.netex.model.ServiceJourney;
+import org.rutebanken.netex.model.ServiceLink;
 
 /**
  * Maps NeTEx JourneyPattern to OTP TripPattern. All ServiceJourneys in the same JourneyPattern
@@ -72,6 +71,8 @@ class TripPatternMapper {
 
   private final StopTimesMapper stopTimesMapper;
 
+  private final ServiceLinkMapper serviceLinkMapper;
+
   private final Deduplicator deduplicator;
 
   private TripPatternMapperResult result;
@@ -84,19 +85,20 @@ class TripPatternMapper {
     EntityById<FlexStopLocation> flexStopLocationsById,
     EntityById<FlexLocationGroup> flexLocationGroupsById,
     EntityById<org.opentripplanner.transit.model.network.Route> otpRouteById,
-    Set<FeedScopedId> shapePointsIds,
     ReadOnlyHierarchicalMap<String, Route> routeById,
     ReadOnlyHierarchicalMap<String, JourneyPattern> journeyPatternById,
     ReadOnlyHierarchicalMap<String, String> quayIdByStopPointRef,
     ReadOnlyHierarchicalMap<String, String> flexibleStopPlaceIdByStopPointRef,
     ReadOnlyHierarchicalMap<String, DestinationDisplay> destinationDisplayById,
     ReadOnlyHierarchicalMap<String, ServiceJourney> serviceJourneyById,
+    ReadOnlyHierarchicalMapById<ServiceLink> serviceLinkById,
     ReadOnlyHierarchicalMapById<FlexibleLine> flexibleLinesById,
     ReadOnlyHierarchicalMapById<OperatingDay> operatingDayById,
     ReadOnlyHierarchicalMapById<DatedServiceJourney> datedServiceJourneyById,
     Multimap<String, DatedServiceJourney> datedServiceJourneysBySJId,
     Map<String, FeedScopedId> serviceIds,
-    Deduplicator deduplicator
+    Deduplicator deduplicator,
+    double maxStopToShapeSnapDistance
   ) {
     this.issueStore = issueStore;
     this.idFactory = idFactory;
@@ -112,8 +114,7 @@ class TripPatternMapper {
         otpRouteById,
         routeById,
         journeyPatternById,
-        serviceIds,
-        shapePointsIds
+        serviceIds
       );
     this.stopTimesMapper =
       new StopTimesMapper(
@@ -127,6 +128,15 @@ class TripPatternMapper {
         flexibleStopPlaceIdByStopPointRef,
         flexibleLinesById,
         routeById
+      );
+    this.serviceLinkMapper =
+      new ServiceLinkMapper(
+        idFactory,
+        serviceLinkById,
+        quayIdByStopPointRef,
+        stopsById,
+        issueStore,
+        maxStopToShapeSnapDistance
       );
     this.deduplicator = deduplicator;
 
@@ -213,29 +223,21 @@ class TripPatternMapper {
       new StopPattern(result.tripStopTimes.get(trips.get(0)))
     );
 
-    TripPattern tripPattern = new TripPattern(
-      idFactory.createId(journeyPattern.getId()),
-      lookupRoute(journeyPattern),
-      stopPattern
-    );
+    TripPatternBuilder tripPatternBuilder = TripPattern
+      .of(idFactory.createId(journeyPattern.getId()))
+      .withRoute(lookupRoute(journeyPattern))
+      .withStopPattern(stopPattern)
+      .withName(journeyPattern.getName() == null ? "" : journeyPattern.getName().getValue())
+      .withHopGeometries(
+        serviceLinkMapper.getGeometriesByJourneyPattern(journeyPattern, stopPattern)
+      );
 
-    tripPattern.setName(
-      journeyPattern.getName() == null ? "" : journeyPattern.getName().getValue()
-    );
-
+    TripPattern tripPattern = tripPatternBuilder.build();
     createTripTimes(trips, tripPattern);
 
     result.tripPatterns.put(stopPattern, tripPattern);
 
     return result;
-  }
-
-  private static String getHeadsign(List<StopTime> stopTimes) {
-    if (stopTimes != null && stopTimes.size() > 0) {
-      return stopTimes.stream().findFirst().get().getStopHeadsign();
-    } else {
-      return "";
-    }
   }
 
   private void mapDatedServiceJourney(
@@ -265,7 +267,7 @@ class TripPatternMapper {
       return null;
     }
 
-    var serviceDate = new ServiceDate(opDay.getCalendarDate().toLocalDate());
+    var serviceDate = opDay.getCalendarDate().toLocalDate();
     var id = idFactory.createId(datedServiceJourney.getId());
     var alteration = TripServiceAlterationMapper.mapAlteration(
       datedServiceJourney.getServiceAlteration()
@@ -309,7 +311,13 @@ class TripPatternMapper {
       .filter(Objects::nonNull)
       .toList();
 
-    return new TripOnServiceDate(id, trip, serviceDate, alteration, replacementFor);
+    return TripOnServiceDate
+      .of(id)
+      .withTrip(trip)
+      .withServiceDate(serviceDate)
+      .withTripAlteration(alteration)
+      .withReplacementFor(replacementFor)
+      .build();
   }
 
   private org.opentripplanner.transit.model.network.Route lookupRoute(

@@ -1,15 +1,15 @@
 package org.opentripplanner.api.parameter;
 
-import com.google.common.collect.Sets;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.opentripplanner.routing.api.request.RequestModes;
 import org.opentripplanner.routing.api.request.RequestModesBuilder;
 import org.opentripplanner.routing.api.request.StreetMode;
-import org.opentripplanner.transit.model.network.TransitMode;
+import org.opentripplanner.transit.model.basic.TransitMode;
 
 /**
  * A set of qualified modes. The original intent was to allow a sequence of mode sets, but the shift
@@ -27,7 +27,7 @@ public class QualifiedModeSet implements Serializable {
   @Serial
   private static final long serialVersionUID = 1L;
 
-  public Set<QualifiedMode> qModes = Sets.newHashSet();
+  public Set<QualifiedMode> qModes = new HashSet<>();
 
   public QualifiedModeSet(String[] modes) {
     for (String qMode : modes) {

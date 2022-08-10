@@ -12,28 +12,32 @@ import com.google.transit.realtime.GtfsRealtime.TripUpdate;
 import com.google.transit.realtime.GtfsRealtime.TripUpdate.StopTimeEvent;
 import com.google.transit.realtime.GtfsRealtime.TripUpdate.StopTimeUpdate;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.opentripplanner.ConstantsForTests;
-import org.opentripplanner.model.calendar.ServiceDate;
+import org.opentripplanner.TestOtpModel;
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
 import org.opentripplanner.routing.spt.GraphPath;
 import org.opentripplanner.routing.spt.ShortestPathTree;
-import org.opentripplanner.routing.trippattern.RealTimeState;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
+import org.opentripplanner.transit.model.network.TripPattern;
+import org.opentripplanner.transit.model.timetable.RealTimeState;
+import org.opentripplanner.transit.service.TransitModel;
 import org.opentripplanner.updater.stoptime.BackwardsDelayPropagationType;
 import org.opentripplanner.util.TestUtils;
 
 public class TimetableTest {
 
-  private static final TimeZone timeZone = TimeZone.getTimeZone("America/New_York");
-  private static final ServiceDate serviceDate = new ServiceDate(2009, 8, 7);
+  private static final ZoneId timeZone = ZoneId.of("America/New_York");
+  private static final LocalDate serviceDate = LocalDate.of(2009, 8, 7);
   private static Graph graph;
+  private static TransitModel transitModel;
   private static Map<FeedScopedId, TripPattern> patternIndex;
   private static TripPattern pattern;
   private static Timetable timetable;
@@ -41,12 +45,14 @@ public class TimetableTest {
 
   @BeforeAll
   public static void setUp() throws Exception {
-    graph = ConstantsForTests.buildGtfsGraph(ConstantsForTests.FAKE_GTFS);
+    TestOtpModel model = ConstantsForTests.buildGtfsGraph(ConstantsForTests.FAKE_GTFS);
+    graph = model.graph();
+    transitModel = model.transitModel();
 
-    feedId = graph.getFeedIds().stream().findFirst().get();
+    feedId = transitModel.getFeedIds().stream().findFirst().get();
     patternIndex = new HashMap<>();
 
-    for (TripPattern pattern : graph.tripPatternForId.values()) {
+    for (TripPattern pattern : transitModel.getAllTripPatterns()) {
       pattern.scheduledTripsAsStream().forEach(trip -> patternIndex.put(trip.getId(), pattern));
     }
 

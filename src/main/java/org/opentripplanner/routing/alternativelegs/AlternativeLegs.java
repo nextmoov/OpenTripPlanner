@@ -2,6 +2,7 @@ package org.opentripplanner.routing.alternativelegs;
 
 import static org.opentripplanner.routing.stoptimes.StopTimesHelper.skipByTripCancellation;
 
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -17,18 +18,15 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import org.opentripplanner.model.Timetable;
-import org.opentripplanner.model.TimetableSnapshot;
-import org.opentripplanner.model.TripPattern;
 import org.opentripplanner.model.TripTimeOnDate;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.model.plan.Leg;
 import org.opentripplanner.model.plan.ScheduledTransitLeg;
-import org.opentripplanner.routing.RoutingService;
-import org.opentripplanner.routing.core.ServiceDay;
-import org.opentripplanner.routing.trippattern.TripTimes;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.model.site.Station;
 import org.opentripplanner.transit.model.site.StopLocation;
+import org.opentripplanner.transit.model.timetable.TripTimes;
 import org.opentripplanner.transit.service.TransitService;
+import org.opentripplanner.util.time.ServiceDateUtils;
 
 /**
  * A helper class to fetch previous/next alternative legs for a scheduled transit leg.
@@ -44,7 +42,6 @@ public class AlternativeLegs {
   public static List<ScheduledTransitLeg> getAlternativeLegs(
     Leg leg,
     Integer numberLegs,
-    RoutingService routingService,
     TransitService transitService,
     boolean searchBackward,
     AlternativeLegsFilter filter
@@ -63,8 +60,6 @@ public class AlternativeLegs {
       ? List.of(toStop)
       : toStation.getChildStops();
 
-    TimetableSnapshot timetableSnapshot = transitService.getTimetableSnapshot();
-
     Comparator<ScheduledTransitLeg> legComparator = Comparator.comparing(
       ScheduledTransitLeg::getStartTime
     );
@@ -77,20 +72,12 @@ public class AlternativeLegs {
 
     return origins
       .stream()
-      .flatMap(stop -> transitService.getPatternsForStop(stop, timetableSnapshot).stream())
+      .flatMap(stop -> transitService.getPatternsForStop(stop, true).stream())
       .filter(tripPattern -> tripPattern.getStops().stream().anyMatch(destinations::contains))
       .filter(tripPatternPredicate)
       .flatMap(tripPattern -> withBoardingAlightingPositions(origins, destinations, tripPattern))
       .flatMap(t ->
-        generateLegs(
-          routingService,
-          transitService,
-          timetableSnapshot,
-          t,
-          leg.getStartTime(),
-          leg.getServiceDate(),
-          searchBackward
-        )
+        generateLegs(transitService, t, leg.getStartTime(), leg.getServiceDate(), searchBackward)
       )
       .filter(Predicate.not(leg::isPartiallySameTransitLeg))
       .sorted(legComparator)
@@ -104,12 +91,10 @@ public class AlternativeLegs {
    */
   @Nonnull
   private static Stream<ScheduledTransitLeg> generateLegs(
-    RoutingService routingService,
     TransitService transitService,
-    TimetableSnapshot timetableSnapshot,
     TripPatternBetweenStops tripPatternBetweenStops,
     ZonedDateTime departureTime,
-    ServiceDate originalDate,
+    LocalDate originalDate,
     boolean searchBackward
   ) {
     TripPattern pattern = tripPatternBetweenStops.tripPattern;
@@ -117,7 +102,7 @@ public class AlternativeLegs {
     int alightingPosition = tripPatternBetweenStops.positions.alightingPosition;
 
     // TODO: What should we have here
-    ZoneId timeZone = routingService.getTimeZone().toZoneId();
+    ZoneId timeZone = transitService.getTimeZone();
 
     Comparator<TripTimeOnDate> comparator = Comparator.comparing((TripTimeOnDate tts) ->
       tts.getServiceDayMidnight() + tts.getRealtimeDeparture()
@@ -129,29 +114,24 @@ public class AlternativeLegs {
 
     Queue<TripTimeOnDate> pq = new PriorityQueue<>(comparator);
 
-    long startTime = departureTime.toEpochSecond();
-
     // Loop through all possible days
-    ServiceDate[] serviceDates = { originalDate.previous(), originalDate, originalDate.next() };
+    var serviceDates = List.of(originalDate.minusDays(1), originalDate, originalDate.plusDays(1));
 
-    for (ServiceDate serviceDate : serviceDates) {
-      ServiceDay sd = new ServiceDay(
-        transitService.getServiceCodes(),
+    for (LocalDate serviceDate : serviceDates) {
+      Timetable timetable = transitService.getTimetableForTripPattern(pattern, serviceDate);
+      ZonedDateTime midnight = ServiceDateUtils.asStartOfService(
         serviceDate,
-        transitService.getCalendarService(),
-        pattern.getRoute().getAgency().getId()
+        transitService.getTimeZone()
+      );
+      int secondsSinceMidnight = ServiceDateUtils.secondsSinceStartOfService(
+        midnight,
+        departureTime
       );
 
-      Timetable timetable;
-      if (timetableSnapshot != null) {
-        timetable = timetableSnapshot.resolve(pattern, serviceDate);
-      } else {
-        timetable = pattern.getScheduledTimetable();
-      }
+      var servicesRunning = transitService.getServiceCodesRunningForDate(serviceDate);
 
-      int secondsSinceMidnight = sd.secondsSinceMidnight(startTime);
       for (TripTimes tripTimes : timetable.getTripTimes()) {
-        if (!sd.serviceRunning(tripTimes.getServiceCode())) {
+        if (!servicesRunning.contains(tripTimes.getServiceCode())) {
           continue;
         }
         if (skipByTripCancellation(tripTimes, false)) {
@@ -163,7 +143,15 @@ public class AlternativeLegs {
           : tripTimes.getDepartureTime(boardingPosition) >= secondsSinceMidnight;
 
         if (departureTimeInRange) {
-          pq.add(new TripTimeOnDate(tripTimes, boardingPosition, pattern, sd));
+          pq.add(
+            new TripTimeOnDate(
+              tripTimes,
+              boardingPosition,
+              pattern,
+              serviceDate,
+              midnight.toInstant()
+            )
+          );
         }
       }
     }
@@ -186,14 +174,16 @@ public class AlternativeLegs {
     int alightingPosition,
     TripTimeOnDate tripTimeOnDate
   ) {
-    ServiceDate serviceDay = tripTimeOnDate.getServiceDay();
-
+    LocalDate serviceDay = tripTimeOnDate.getServiceDay();
     TripTimes tripTimes = tripTimeOnDate.getTripTimes();
-    ZonedDateTime boardingTime = serviceDay.toZonedDateTime(
+
+    ZonedDateTime boardingTime = ServiceDateUtils.toZonedDateTime(
+      serviceDay,
       timeZone,
       tripTimeOnDate.getRealtimeDeparture()
     );
-    ZonedDateTime alightingTime = serviceDay.toZonedDateTime(
+    ZonedDateTime alightingTime = ServiceDateUtils.toZonedDateTime(
+      serviceDay,
       timeZone,
       tripTimes.getArrivalTime(alightingPosition)
     );
@@ -205,7 +195,7 @@ public class AlternativeLegs {
       alightingPosition,
       boardingTime,
       alightingTime,
-      serviceDay.toLocalDate(),
+      serviceDay,
       timeZone,
       null,
       null,

@@ -7,8 +7,9 @@ import static org.opentripplanner.ext.legacygraphqlapi.mapping.LegacyGraphQLSeve
 import graphql.relay.Relay;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,19 +20,20 @@ import org.opentripplanner.ext.legacygraphqlapi.model.LegacyGraphQLRouteTypeMode
 import org.opentripplanner.ext.legacygraphqlapi.model.LegacyGraphQLStopOnRouteModel;
 import org.opentripplanner.ext.legacygraphqlapi.model.LegacyGraphQLStopOnTripModel;
 import org.opentripplanner.ext.legacygraphqlapi.model.LegacyGraphQLUnknownModel;
-import org.opentripplanner.model.TripPattern;
 import org.opentripplanner.routing.alertpatch.EntitySelector;
 import org.opentripplanner.routing.alertpatch.EntitySelector.DirectionAndRoute;
 import org.opentripplanner.routing.alertpatch.EntitySelector.StopAndRouteOrTripKey;
 import org.opentripplanner.routing.alertpatch.TransitAlert;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.transit.model.basic.TranslatedString;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.network.Route;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.model.organization.Agency;
 import org.opentripplanner.transit.model.site.StopLocation;
+import org.opentripplanner.transit.model.timetable.Direction;
 import org.opentripplanner.transit.model.timetable.Trip;
 import org.opentripplanner.transit.service.TransitService;
-import org.opentripplanner.util.I18NString;
-import org.opentripplanner.util.TranslatedString;
 
 public class LegacyGraphQLAlertImpl implements LegacyGraphQLDataFetchers.LegacyGraphQLAlert {
 
@@ -126,22 +128,22 @@ public class LegacyGraphQLAlertImpl implements LegacyGraphQLDataFetchers.LegacyG
   @Override
   public DataFetcher<Long> effectiveEndDate() {
     return environment -> {
-      Date effectiveEndDate = getSource(environment).getEffectiveEndDate();
+      Instant effectiveEndDate = getSource(environment).getEffectiveEndDate();
       if (effectiveEndDate == null) {
         return null;
       }
-      return effectiveEndDate.getTime() / 1000;
+      return effectiveEndDate.getEpochSecond();
     };
   }
 
   @Override
   public DataFetcher<Long> effectiveStartDate() {
     return environment -> {
-      Date effectiveStartDate = getSource(environment).getEffectiveStartDate();
+      Instant effectiveStartDate = getSource(environment).getEffectiveStartDate();
       if (effectiveStartDate == null) {
         return null;
       }
-      return effectiveStartDate.getTime() / 1000;
+      return effectiveStartDate.getEpochSecond();
     };
   }
 
@@ -169,7 +171,7 @@ public class LegacyGraphQLAlertImpl implements LegacyGraphQLDataFetchers.LegacyG
           }
           if (entitySelector instanceof EntitySelector.Trip) {
             FeedScopedId id = ((EntitySelector.Trip) entitySelector).tripId;
-            Trip trip = getTransitService(environment).getTripForId().get(id);
+            Trip trip = getTransitService(environment).getTripForId(id);
             return List.of(getAlertEntityOrUnknown(trip, id.toString(), "trip"));
           }
           if (entitySelector instanceof EntitySelector.StopAndRoute) {
@@ -198,7 +200,7 @@ public class LegacyGraphQLAlertImpl implements LegacyGraphQLDataFetchers.LegacyG
             FeedScopedId stopId = stopAndTripKey.stop;
             FeedScopedId tripId = stopAndTripKey.routeOrTrip;
             StopLocation stop = getTransitService(environment).getStopForId(stopId);
-            Trip trip = getTransitService(environment).getTripForId().get(tripId);
+            Trip trip = getTransitService(environment).getTripForId(tripId);
             return List.of(
               stop != null && trip != null
                 ? new LegacyGraphQLStopOnTripModel(stop, trip)
@@ -222,7 +224,7 @@ public class LegacyGraphQLAlertImpl implements LegacyGraphQLDataFetchers.LegacyG
                 : getUnknownForAlertEntityPair(
                   agency,
                   routeType,
-                  agency.toString(),
+                  null,
                   Integer.toString(routeType),
                   "agency",
                   "route type"
@@ -235,22 +237,21 @@ public class LegacyGraphQLAlertImpl implements LegacyGraphQLDataFetchers.LegacyG
             return List.of(new LegacyGraphQLRouteTypeModel(null, routeType, feedId));
           }
           if (entitySelector instanceof EntitySelector.DirectionAndRoute) {
-            int directionId = ((DirectionAndRoute) entitySelector).directionId;
+            Direction direction = ((DirectionAndRoute) entitySelector).direction;
             FeedScopedId routeId = ((EntitySelector.DirectionAndRoute) entitySelector).routeId;
             Route route = getTransitService(environment).getRouteForId(routeId);
             return route != null
               ? getTransitService(environment)
-                .getPatternsForRoute()
-                .get(route)
+                .getPatternsForRoute(route)
                 .stream()
-                .filter(pattern -> pattern.getDirection().gtfsCode == directionId)
+                .filter(pattern -> pattern.getDirection() == direction)
                 .collect(Collectors.toList())
               : List.of(
                 getUnknownForAlertEntityPair(
                   route,
-                  directionId,
-                  route.toString(),
-                  Integer.toString(directionId),
+                  direction,
+                  null,
+                  direction.name(),
                   "route",
                   "direction"
                 )
@@ -263,7 +264,7 @@ public class LegacyGraphQLAlertImpl implements LegacyGraphQLDataFetchers.LegacyG
           }
           return List.of();
         })
-        .flatMap(list -> list.stream())
+        .flatMap(Collection::stream)
         .map(Object.class::cast)
         .collect(Collectors.toList());
   }
@@ -319,9 +320,7 @@ public class LegacyGraphQLAlertImpl implements LegacyGraphQLDataFetchers.LegacyG
         .filter(entitySelector -> entitySelector instanceof EntitySelector.Trip)
         .findAny()
         .map(EntitySelector.Trip.class::cast)
-        .map(entitySelector ->
-          getTransitService(environment).getTripForId().get(entitySelector.tripId)
-        )
+        .map(entitySelector -> getTransitService(environment).getTripForId(entitySelector.tripId))
         .orElse(null);
   }
 

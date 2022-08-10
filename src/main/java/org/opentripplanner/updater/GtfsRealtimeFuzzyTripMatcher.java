@@ -1,16 +1,19 @@
 package org.opentripplanner.updater;
 
 import com.google.transit.realtime.GtfsRealtime.TripDescriptor;
+import gnu.trove.set.TIntSet;
 import java.text.ParseException;
-import java.util.BitSet;
-import org.opentripplanner.model.TripPattern;
-import org.opentripplanner.model.calendar.ServiceDate;
-import org.opentripplanner.routing.RoutingService;
-import org.opentripplanner.routing.trippattern.TripTimes;
+import java.time.LocalDate;
+import org.opentripplanner.graph_builder.DataImportIssueStore;
+import org.opentripplanner.gtfs.mapping.DirectionMapper;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.network.Route;
+import org.opentripplanner.transit.model.network.TripPattern;
+import org.opentripplanner.transit.model.timetable.Direction;
 import org.opentripplanner.transit.model.timetable.Trip;
+import org.opentripplanner.transit.model.timetable.TripTimes;
 import org.opentripplanner.transit.service.TransitService;
+import org.opentripplanner.util.time.ServiceDateUtils;
 import org.opentripplanner.util.time.TimeUtils;
 
 /**
@@ -22,17 +25,14 @@ import org.opentripplanner.util.time.TimeUtils;
  */
 public class GtfsRealtimeFuzzyTripMatcher {
 
-  private final RoutingService routingService;
-
   private final TransitService transitService;
-  private BitSet servicesRunningForDate;
-  private ServiceDate date;
 
-  public GtfsRealtimeFuzzyTripMatcher(
-    RoutingService routingService,
-    TransitService transitService
-  ) {
-    this.routingService = routingService;
+  // TODO: replace this with a runtime solution
+  private final DirectionMapper directionMapper = new DirectionMapper(
+    DataImportIssueStore.noopIssueStore()
+  );
+
+  public GtfsRealtimeFuzzyTripMatcher(TransitService transitService) {
     this.transitService = transitService;
   }
 
@@ -51,9 +51,9 @@ public class GtfsRealtimeFuzzyTripMatcher {
 
     FeedScopedId routeId = new FeedScopedId(feedId, trip.getRouteId());
     int time = TimeUtils.time(trip.getStartTime());
-    ServiceDate date;
+    LocalDate date;
     try {
-      date = ServiceDate.parseString(trip.getStartDate());
+      date = ServiceDateUtils.parseString(trip.getStartDate());
     } catch (ParseException e) {
       return trip;
     }
@@ -61,13 +61,13 @@ public class GtfsRealtimeFuzzyTripMatcher {
     if (route == null) {
       return trip;
     }
-    int direction = trip.getDirectionId();
+    Direction direction = directionMapper.map(trip.getDirectionId());
 
     Trip matchedTrip = getTrip(route, direction, time, date);
 
     if (matchedTrip == null) {
       // Check if the trip is carried over from previous day
-      date = date.previous();
+      date = date.minusDays(1);
       time += 24 * 60 * 60;
       matchedTrip = getTrip(route, direction, time, date);
     }
@@ -80,18 +80,19 @@ public class GtfsRealtimeFuzzyTripMatcher {
     return trip.toBuilder().setTripId(matchedTrip.getId().getId()).build();
   }
 
-  public synchronized Trip getTrip(Route route, int direction, int startTime, ServiceDate date) {
-    if (!date.equals(this.date)) {
-      this.date = date;
-      // TODO: This is slow, we should either precalculate or cache these for all dates in graph
-      this.servicesRunningForDate = routingService.getServicesRunningForDate(date);
-    }
-    for (TripPattern pattern : transitService.getPatternsForRoute().get(route)) {
-      if (pattern.getDirection().gtfsCode != direction) continue;
+  public synchronized Trip getTrip(
+    Route route,
+    Direction direction,
+    int startTime,
+    LocalDate date
+  ) {
+    TIntSet servicesRunningForDate = transitService.getServiceCodesRunningForDate(date);
+    for (TripPattern pattern : transitService.getPatternsForRoute(route)) {
+      if (pattern.getDirection() != direction) continue;
       for (TripTimes times : pattern.getScheduledTimetable().getTripTimes()) {
         if (
           times.getScheduledDepartureTime(0) == startTime &&
-          servicesRunningForDate.get(times.getServiceCode())
+          servicesRunningForDate.contains(times.getServiceCode())
         ) {
           return times.getTrip();
         }

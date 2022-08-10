@@ -11,8 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
-import org.opentripplanner.common.geometry.GeometryUtils;
-import org.opentripplanner.openstreetmap.model.OSMWithTags;
 import org.opentripplanner.routing.core.TraverseMode;
 import org.opentripplanner.routing.core.TraverseModeSet;
 import org.opentripplanner.routing.edgetype.AreaEdge;
@@ -22,22 +20,31 @@ import org.opentripplanner.routing.edgetype.StreetTraversalPermission;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.vertextype.IntersectionVertex;
 import org.opentripplanner.routing.vertextype.TransitStopVertex;
+import org.opentripplanner.routing.vertextype.TransitStopVertexBuilder;
 import org.opentripplanner.transit.model._data.TransitModelForTest;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.transit.model.basic.LocalizedString;
+import org.opentripplanner.transit.model.framework.Deduplicator;
 import org.opentripplanner.transit.model.site.Stop;
-import org.opentripplanner.util.I18NString;
-import org.opentripplanner.util.LocalizedString;
+import org.opentripplanner.transit.service.StopModel;
+import org.opentripplanner.transit.service.TransitModel;
+import org.opentripplanner.util.geometry.GeometryUtils;
 
 public class LinkStopToPlatformTest {
 
   private static final GeometryFactory geometryFactory = GeometryUtils.getGeometryFactory();
 
   private Graph graph;
+  private TransitModel transitModel;
 
   @BeforeEach
   public void before() {
     // Set up transit platform
 
-    graph = new Graph();
+    var deduplicator = new Deduplicator();
+    var stopModel = new StopModel();
+    graph = new Graph(stopModel, deduplicator);
+    transitModel = new TransitModel(stopModel, deduplicator);
 
     ArrayList<IntersectionVertex> vertices = new ArrayList<>();
 
@@ -68,7 +75,11 @@ public class LinkStopToPlatformTest {
 
     Stop stop = TransitModelForTest.stop("TestStop").withCoordinate(59.13545, 10.22213).build();
 
-    TransitStopVertex stopVertex = new TransitStopVertex(graph, stop, null);
+    TransitStopVertex stopVertex = new TransitStopVertexBuilder()
+      .withGraph(graph)
+      .withStop(stop)
+      .withTransitModel(transitModel)
+      .build();
   }
 
   /**
@@ -115,7 +126,7 @@ public class LinkStopToPlatformTest {
     LineString line = geometryFactory.createLineString(
       new Coordinate[] { v1.getCoordinate(), v2.getCoordinate() }
     );
-    I18NString name = new LocalizedString(nameString, new OSMWithTags());
+    I18NString name = new LocalizedString(nameString);
 
     return new AreaEdge(
       v1,

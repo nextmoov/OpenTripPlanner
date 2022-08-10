@@ -1,10 +1,9 @@
 package org.opentripplanner.routing.graphfinder;
 
 import java.util.List;
-import org.opentripplanner.routing.RoutingService;
 import org.opentripplanner.routing.graph.Graph;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
-import org.opentripplanner.transit.model.network.TransitMode;
 import org.opentripplanner.transit.service.TransitService;
 
 /**
@@ -49,8 +48,6 @@ public interface GraphFinder {
    *                                   disable the filtering.
    * @param filterByBikeRentalStations A list of VehicleRentalStation ids to use in filtering. Use
    *                                   null to disable the filtering.
-   * @param routingService             A RoutingService used in finding information about the
-   *                                   various places.
    */
   List<PlaceAtDistance> findClosestPlaces(
     double lat,
@@ -62,7 +59,6 @@ public interface GraphFinder {
     List<FeedScopedId> filterByStops,
     List<FeedScopedId> filterByRoutes,
     List<String> filterByBikeRentalStations,
-    RoutingService routingService,
     TransitService transitService
   );
 }

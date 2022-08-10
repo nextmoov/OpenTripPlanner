@@ -5,14 +5,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.locationtech.jts.geom.Coordinate;
-import org.opentripplanner.model.FlexStopLocation;
 import org.opentripplanner.routing.core.TraverseMode;
 import org.opentripplanner.routing.edgetype.StreetEdge;
 import org.opentripplanner.routing.graph.Edge;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
-import org.opentripplanner.util.I18NString;
-import org.opentripplanner.util.LocalizedString;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.transit.model.basic.LocalizedString;
+import org.opentripplanner.transit.model.site.FlexStopLocation;
 
 /**
  * Abstract base class for vertices in the street layer of the graph. This includes both vertices

@@ -6,12 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 import org.opentripplanner.transit.model._data.TransitModelForTest;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.transit.model.basic.NonLocalizedString;
 import org.opentripplanner.transit.model.basic.WgsCoordinate;
-import org.opentripplanner.util.I18NString;
-import org.opentripplanner.util.NonLocalizedString;
 
 class StationTest {
 
@@ -23,7 +23,7 @@ class StationTest {
 
   public static final WgsCoordinate COORDINATE = new WgsCoordinate(0, 0);
   private static final StopTransferPriority PRIORITY = StopTransferPriority.ALLOWED;
-  private static final TimeZone TIMEZONE = TimeZone.getTimeZone(TransitModelForTest.TIME_ZONE_ID);
+  private static final ZoneId TIMEZONE = ZoneId.of(TransitModelForTest.TIME_ZONE_ID);
   private static final I18NString URL = new NonLocalizedString("url");
   private static final Station subject = Station
     .of(TransitModelForTest.id(ID))
@@ -78,10 +78,7 @@ class StationTest {
     assertFalse(subject.sameAs(subject.copy().withUrl(new NonLocalizedString("X")).build()));
     assertFalse(
       subject.sameAs(
-        subject
-          .copy()
-          .withTimezone(TimeZone.getTimeZone(TransitModelForTest.OTHER_TIME_ZONE_ID))
-          .build()
+        subject.copy().withTimezone(ZoneId.of(TransitModelForTest.OTHER_TIME_ZONE_ID)).build()
       )
     );
   }

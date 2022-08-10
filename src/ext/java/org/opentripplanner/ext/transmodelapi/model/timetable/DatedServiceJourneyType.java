@@ -11,8 +11,7 @@ import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLTypeReference;
 import java.util.Optional;
 import org.opentripplanner.ext.transmodelapi.support.GqlUtil;
-import org.opentripplanner.model.TripOnServiceDate;
-import org.opentripplanner.model.calendar.ServiceDate;
+import org.opentripplanner.transit.model.timetable.TripOnServiceDate;
 
 /**
  * A DatedServiceJourney GraphQL Type for use in endpoints fetching DatedServiceJourney data
@@ -40,7 +39,6 @@ public class DatedServiceJourneyType {
             Optional
               .of(tripOnServiceDate(environment))
               .map(TripOnServiceDate::getServiceDate)
-              .map(ServiceDate::toLocalDate)
               .orElse(null)
           )
       )

@@ -162,7 +162,14 @@ public class Itinerary {
    * also used by other filters to see the already filtered itineraries.
    */
   public void flagForDeletion(SystemNotice notice) {
-    getSystemNotices().add(notice);
+    systemNotices.add(notice);
+  }
+
+  /**
+   * Remove all deletion flags of this itinerary, in effect undeleting it from the result.
+   */
+  public void removeDeletionFlags() {
+    systemNotices.clear();
   }
 
   public boolean isFlaggedForDeletion() {
@@ -202,8 +209,8 @@ public class Itinerary {
       .of(Itinerary.class)
       .addStr("from", firstLeg().getFrom().toStringShort())
       .addStr("to", lastLeg().getTo().toStringShort())
-      .addTimeCal("start", firstLeg().getStartTime())
-      .addTimeCal("end", lastLeg().getEndTime())
+      .addTime("start", firstLeg().getStartTime())
+      .addTime("end", lastLeg().getEndTime())
       .addNum("nTransfers", numberOfTransfers, -1)
       .addDurationSec("duration", durationSeconds)
       .addNum("generalizedCost", generalizedCost)
@@ -312,7 +319,7 @@ public class Itinerary {
    * expected trips.
    */
   public List<SystemNotice> getSystemNotices() {
-    return systemNotices;
+    return List.copyOf(systemNotices);
   }
 
   /**

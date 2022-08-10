@@ -5,19 +5,19 @@ import com.fasterxml.jackson.databind.node.MissingNode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.Period;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.opentripplanner.api.common.RoutingResource;
 import org.opentripplanner.common.geometry.CompactElevationProfile;
 import org.opentripplanner.ext.dataoverlay.configuration.DataOverlayConfig;
+import org.opentripplanner.ext.fares.FaresConfiguration;
 import org.opentripplanner.graph_builder.module.osm.WayPropertySetSource;
 import org.opentripplanner.graph_builder.services.osm.CustomNamer;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.model.calendar.ServiceDateInterval;
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.fares.FareServiceFactory;
-import org.opentripplanner.routing.fares.impl.DefaultFareServiceFactory;
 import org.opentripplanner.standalone.config.sandbox.DataOverlayConfigMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -323,6 +323,17 @@ public class BuildConfig {
   public boolean discardMinTransferTimes;
 
   /**
+   * Time zone for the graph. This is used to store the timetables in the transit model, and to
+   * interpret times in incoming requests.
+   */
+  public ZoneId timeZone;
+
+  /**
+   * Whether to create stay-seated transfers in between two trips with the same block id.
+   */
+  public boolean blockBasedInterlining;
+
+  /**
    * Set all parameters from the given Jackson JSON tree, applying defaults. Supplying
    * MissingNode.getInstance() will cause all the defaults to be applied. This could be done
    * automatically with the "reflective query scraper" but it's less type safe and less clear. Until
@@ -353,6 +364,7 @@ public class BuildConfig {
     matchBusRoutesToStreets = c.asBoolean("matchBusRoutesToStreets", false);
     maxDataImportIssuesPerFile = c.asInt("maxDataImportIssuesPerFile", 1000);
     maxInterlineDistance = c.asInt("maxInterlineDistance", 200);
+    blockBasedInterlining = c.asBoolean("blockBasedInterlining", true);
     maxTransferDurationSeconds =
       c.asDouble("maxTransferDurationSeconds", Duration.ofMinutes(30).toSeconds());
     maxStopToShapeSnapDistance = c.asDouble("maxStopToShapeSnapDistance", 150);
@@ -375,9 +387,10 @@ public class BuildConfig {
     maxElevationPropagationMeters = c.asInt("maxElevationPropagationMeters", 2000);
     boardingLocationTags = c.asTextSet("boardingLocationTags", Set.of("ref"));
     discardMinTransferTimes = c.asBoolean("discardMinTransferTimes", false);
+    timeZone = c.asZoneId("timeZone", null);
 
     // List of complex parameters
-    fareServiceFactory = DefaultFareServiceFactory.fromConfig(c.asRawNode("fares"));
+    fareServiceFactory = FaresConfiguration.fromConfig(c.asRawNode("fares"));
     customNamer = CustomNamer.CustomNamerFactory.fromConfig(c.asRawNode("osmNaming"));
     netex = new NetexConfig(c.path("netex"));
     storage = new StorageConfig(c.path("storage"));
@@ -390,7 +403,7 @@ public class BuildConfig {
           .asList()
           .stream()
           .map(RoutingRequestMapper::mapRoutingRequest)
-          .collect(Collectors.toUnmodifiableList());
+          .toList();
     } else {
       transferRequests = List.of(new RoutingRequest());
     }
@@ -412,10 +425,7 @@ public class BuildConfig {
   }
 
   public ServiceDateInterval getTransitServicePeriod() {
-    return new ServiceDateInterval(
-      new ServiceDate(transitServiceStart),
-      new ServiceDate(transitServiceEnd)
-    );
+    return new ServiceDateInterval(transitServiceStart, transitServiceEnd);
   }
 
   public int getSubwayAccessTimeSeconds() {

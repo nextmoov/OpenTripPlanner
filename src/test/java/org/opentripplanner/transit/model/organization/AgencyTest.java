@@ -43,14 +43,14 @@ class AgencyTest {
     // Copy and change name
     copy = subject.copy().withName("v2").build();
 
-    // The two objects are not he same instance, but is equal(sae id)
+    // The two objects are not the same instance, but is equal(same id)
     assertNotSame(subject, copy);
     assertEquals(subject, copy);
 
     assertEquals(ID, copy.getId().getId());
     assertEquals("v2", copy.getName());
     assertEquals(URL, copy.getUrl());
-    assertEquals(TIMEZONE, copy.getTimezone());
+    assertEquals(TIMEZONE, copy.getTimezone().getId());
     assertEquals(PHONE, copy.getPhone());
     assertEquals(BRANDING_URL, copy.getBrandingUrl());
     assertEquals(FARE_URL, copy.getFareUrl());
@@ -63,7 +63,7 @@ class AgencyTest {
     assertFalse(subject.sameAs(subject.copy().withId(TransitModelForTest.id("X")).build()));
     assertFalse(subject.sameAs(subject.copy().withName("X").build()));
     assertFalse(subject.sameAs(subject.copy().withUrl("X").build()));
-    assertFalse(subject.sameAs(subject.copy().withTimezone("X").build()));
+    assertFalse(subject.sameAs(subject.copy().withTimezone("CET").build()));
     assertFalse(subject.sameAs(subject.copy().withPhone("X").build()));
     assertFalse(subject.sameAs(subject.copy().withBrandingUrl("X").build()));
     assertFalse(subject.sameAs(subject.copy().withFareUrl("X").build()));

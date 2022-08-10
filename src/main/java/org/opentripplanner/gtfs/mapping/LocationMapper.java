@@ -5,11 +5,12 @@ import static org.opentripplanner.gtfs.mapping.AgencyAndIdMapper.mapAgencyAndId;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import org.opentripplanner.common.geometry.GeometryUtils;
+import org.locationtech.jts.geom.Geometry;
 import org.opentripplanner.common.geometry.UnsupportedGeometryException;
-import org.opentripplanner.model.FlexStopLocation;
+import org.opentripplanner.transit.model.basic.NonLocalizedString;
+import org.opentripplanner.transit.model.site.FlexStopLocation;
 import org.opentripplanner.util.MapUtils;
-import org.opentripplanner.util.NonLocalizedString;
+import org.opentripplanner.util.geometry.GeometryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,24 +31,21 @@ public class LocationMapper {
   }
 
   private FlexStopLocation doMap(org.onebusaway.gtfs.model.Location gtfsLocation) {
-    FlexStopLocation otpLocation = new FlexStopLocation(mapAgencyAndId(gtfsLocation.getId()));
-
-    // according to the spec stop location names are optional for flex zones so, we return the id
-    // when it's null. *shrug*
-    otpLocation.setName(
-      NonLocalizedString.ofNullableOrElse(gtfsLocation.getName(), otpLocation.getId().toString())
-    );
-    otpLocation.setUrl(NonLocalizedString.ofNullable(gtfsLocation.getUrl()));
-    otpLocation.setDescription(NonLocalizedString.ofNullable(gtfsLocation.getDescription()));
-    otpLocation.setZoneId(gtfsLocation.getZoneId());
+    var name = NonLocalizedString.ofNullable(gtfsLocation.getName());
+    Geometry geometry = null;
     try {
-      otpLocation.setGeometry(
-        GeometryUtils.convertGeoJsonToJtsGeometry(gtfsLocation.getGeometry())
-      );
+      geometry = GeometryUtils.convertGeoJsonToJtsGeometry(gtfsLocation.getGeometry());
     } catch (UnsupportedGeometryException e) {
-      LOG.warn("Unsupported geometry type for " + gtfsLocation.getId());
+      LOG.error("Unsupported geometry type for {}", gtfsLocation.getId());
     }
 
-    return otpLocation;
+    return FlexStopLocation
+      .of(mapAgencyAndId(gtfsLocation.getId()))
+      .withName(name)
+      .withUrl(NonLocalizedString.ofNullable(gtfsLocation.getUrl()))
+      .withDescription(NonLocalizedString.ofNullable(gtfsLocation.getDescription()))
+      .withZoneId(gtfsLocation.getZoneId())
+      .withGeometry(geometry)
+      .build();
   }
 }

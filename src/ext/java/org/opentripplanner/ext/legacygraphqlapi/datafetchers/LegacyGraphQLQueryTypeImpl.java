@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,13 +35,14 @@ import org.opentripplanner.ext.legacygraphqlapi.LegacyGraphQLRequestContext;
 import org.opentripplanner.ext.legacygraphqlapi.LegacyGraphQLUtils;
 import org.opentripplanner.ext.legacygraphqlapi.generated.LegacyGraphQLDataFetchers;
 import org.opentripplanner.ext.legacygraphqlapi.generated.LegacyGraphQLTypes;
+import org.opentripplanner.graph_builder.DataImportIssueStore;
+import org.opentripplanner.gtfs.mapping.DirectionMapper;
 import org.opentripplanner.model.GenericLocation;
-import org.opentripplanner.model.TripPattern;
 import org.opentripplanner.model.TripTimeOnDate;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.routing.RoutingService;
 import org.opentripplanner.routing.alertpatch.EntitySelector;
 import org.opentripplanner.routing.alertpatch.TransitAlert;
+import org.opentripplanner.routing.api.request.RequestFunctions;
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.api.response.RoutingResponse;
 import org.opentripplanner.routing.core.BicycleOptimizeType;
@@ -56,20 +58,25 @@ import org.opentripplanner.routing.vehicle_rental.VehicleRentalPlace;
 import org.opentripplanner.routing.vehicle_rental.VehicleRentalStation;
 import org.opentripplanner.routing.vehicle_rental.VehicleRentalStationService;
 import org.opentripplanner.routing.vehicle_rental.VehicleRentalVehicle;
-import org.opentripplanner.routing.vertextype.TransitStopVertex;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.network.Route;
-import org.opentripplanner.transit.model.network.TransitMode;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.model.organization.Agency;
 import org.opentripplanner.transit.model.site.Station;
 import org.opentripplanner.transit.model.site.Stop;
 import org.opentripplanner.transit.model.timetable.Trip;
 import org.opentripplanner.transit.service.TransitService;
 import org.opentripplanner.updater.GtfsRealtimeFuzzyTripMatcher;
-import org.opentripplanner.util.ResourceBundleSingleton;
+import org.opentripplanner.util.time.ServiceDateUtils;
 
 public class LegacyGraphQLQueryTypeImpl
   implements LegacyGraphQLDataFetchers.LegacyGraphQLQueryType {
+
+  // TODO: figure out a runtime solution
+  private static final DirectionMapper DIRECTION_MAPPER = new DirectionMapper(
+    DataImportIssueStore.noopIssueStore()
+  );
 
   public static <T> boolean hasArgument(Map<String, T> m, String name) {
     return m.containsKey(name) && m.get(name) != null;
@@ -95,7 +102,7 @@ public class LegacyGraphQLQueryTypeImpl
   @Override
   public DataFetcher<Iterable<TransitAlert>> alerts() {
     return environment -> {
-      Collection<TransitAlert> alerts = getRoutingService(environment)
+      Collection<TransitAlert> alerts = getTransitService(environment)
         .getTransitAlertService()
         .getAllAlerts();
       var args = new LegacyGraphQLTypes.LegacyGraphQLQueryTypeAlertsArgs(
@@ -351,15 +358,14 @@ public class LegacyGraphQLQueryTypeImpl
         environment.getArguments()
       );
 
-      RoutingService routingService = getRoutingService(environment);
       TransitService transitService = getTransitService(environment);
 
-      return new GtfsRealtimeFuzzyTripMatcher(routingService, transitService)
+      return new GtfsRealtimeFuzzyTripMatcher(transitService)
         .getTrip(
           transitService.getRouteForId(FeedScopedId.parseId(args.getLegacyGraphQLRoute())),
-          args.getLegacyGraphQLDirection(),
+          DIRECTION_MAPPER.map(args.getLegacyGraphQLDirection()),
           args.getLegacyGraphQLTime(),
-          ServiceDate.parseString(args.getLegacyGraphQLDate())
+          ServiceDateUtils.parseString(args.getLegacyGraphQLDate())
         );
     };
   }
@@ -445,7 +451,6 @@ public class LegacyGraphQLQueryTypeImpl
                 filterByBikeRentalStations,
                 filterByBikeParks,
                 filterByCarParks,
-                getRoutingService(environment),
                 getTransitService(environment)
               )
           );
@@ -542,13 +547,13 @@ public class LegacyGraphQLQueryTypeImpl
             var stop = transitService.getStopForId(FeedScopedId.parseId(parts[1]));
 
             // TODO: Add geometry
-            return new NearbyStop(stop, Integer.parseInt(parts[0]), null, null, null);
+            return new NearbyStop(stop, Integer.parseInt(parts[0]), null, null);
           }
         case "TicketType":
           return null; //TODO
         case "Trip":
           var scopedId = FeedScopedId.parseId(id);
-          return transitService.getTripForId().get(scopedId);
+          return transitService.getTripForId(scopedId);
         case "VehicleParking":
           var vehicleParkingId = FeedScopedId.parseId(id);
           return vehicleParkingService == null
@@ -578,14 +583,14 @@ public class LegacyGraphQLQueryTypeImpl
 
   @Override
   public DataFetcher<Iterable<TripPattern>> patterns() {
-    return environment -> getTransitService(environment).getTripPatterns();
+    return environment -> getTransitService(environment).getAllTripPatterns();
   }
 
   @Override
   public DataFetcher<DataFetcherResult<RoutingResponse>> plan() {
     return environment -> {
       LegacyGraphQLRequestContext context = environment.<LegacyGraphQLRequestContext>getContext();
-      RoutingRequest request = context.getRouter().copyDefaultRoutingRequest();
+      RoutingRequest request = context.getServerContext().defaultRoutingRequest();
 
       CallerWithEnvironment callWith = new CallerWithEnvironment(environment);
 
@@ -598,7 +603,7 @@ public class LegacyGraphQLQueryTypeImpl
       request.setDateTime(
         environment.getArgument("date"),
         environment.getArgument("time"),
-        context.getRouter().graph.getTimeZone()
+        context.getServerContext().transitService().getTimeZone()
       );
 
       callWith.argument("wheelchair", request::setWheelchairAccessible);
@@ -612,7 +617,6 @@ public class LegacyGraphQLQueryTypeImpl
       callWith.argument("bikeWalkingReluctance", request::setBikeWalkingReluctance);
       callWith.argument("carReluctance", request::setCarReluctance);
       callWith.argument("walkReluctance", request::setWalkReluctance);
-      // callWith.argument("walkOnStreetReluctance", request::setWalkOnStreetReluctance);
       callWith.argument("waitReluctance", request::setWaitReluctance);
       callWith.argument("waitAtBeginningFactor", request::setWaitAtBeginningFactor);
       callWith.argument("walkSpeed", (Double v) -> request.walkSpeed = v);
@@ -661,7 +665,14 @@ public class LegacyGraphQLQueryTypeImpl
       callWith.argument("preferred.agencies", request::setPreferredAgenciesFromString);
       callWith.argument("unpreferred.routes", request::setUnpreferredRoutesFromString);
       callWith.argument("unpreferred.agencies", request::setUnpreferredAgenciesFromString);
-      // callWith.argument("unpreferred.useUnpreferredRoutesPenalty", request::setUseUnpreferredRoutesPenalty);
+      callWith.argument("unpreferred.unpreferredRouteCost", request::setUnpreferredRouteCost);
+      callWith.argument(
+        "unpreferred.useUnpreferredRoutesPenalty",
+        (Integer v) ->
+          request.setUnpreferredRouteCost(
+            RequestFunctions.serialize(RequestFunctions.createLinearFunction(v, 0.0))
+          )
+      );
       callWith.argument("walkBoardCost", request::setWalkBoardCost);
       callWith.argument("bikeBoardCost", request::setBikeBoardCost);
       callWith.argument("banned.routes", request::setBannedRoutesFromString);
@@ -714,14 +725,22 @@ public class LegacyGraphQLQueryTypeImpl
       }
 
       if (hasArgument(environment, "allowedTicketTypes")) {
-        // request.allowedFares = Sets.newHashSet();
+        // request.allowedFares = new HashSet();
         // ((List<String>)environment.getArgument("allowedTicketTypes")).forEach(ticketType -> request.allowedFares.add(ticketType.replaceFirst("_", ":")));
       }
 
-      if (hasArgument(environment, "allowedBikeRentalNetworks")) {
-        // ArrayList<String> allowedBikeRentalNetworks = environment.getArgument("allowedBikeRentalNetworks");
-        // request.allowedBikeRentalNetworks = new HashSet<>(allowedBikeRentalNetworks);
-      }
+      callWith.argument(
+        "allowedBikeRentalNetworks",
+        (Collection<String> v) -> request.allowedVehicleRentalNetworks = new HashSet<>(v)
+      );
+      callWith.argument(
+        "allowedVehicleRentalNetworks",
+        (Collection<String> v) -> request.allowedVehicleRentalNetworks = new HashSet<>(v)
+      );
+      callWith.argument(
+        "bannedVehicleRentalNetworks",
+        (Collection<String> v) -> request.bannedVehicleRentalNetworks = new HashSet<>(v)
+      );
 
       if (request.vehicleRental && !hasArgument(environment, "bikeSpeed")) {
         //slower bike speed for bike sharing, based on empirical evidence from DC.
@@ -751,12 +770,13 @@ public class LegacyGraphQLQueryTypeImpl
       //callWith.argument("reverseOptimizeOnTheFly", (Boolean v) -> request.reverseOptimizeOnTheFly = v);
       //callWith.argument("omitCanceled", (Boolean v) -> request.omitCanceled = v);
       callWith.argument("ignoreRealtimeUpdates", (Boolean v) -> request.ignoreRealtimeUpdates = v);
+      callWith.argument("walkSafetyFactor", request::setWalkSafetyFactor);
 
       callWith.argument(
         "locale",
-        (String v) -> request.locale = ResourceBundleSingleton.INSTANCE.getLocale(v)
+        (String v) -> request.locale = LegacyGraphQLUtils.getLocale(environment, v)
       );
-      RoutingResponse res = context.getRoutingService().route(request, context.getRouter());
+      RoutingResponse res = context.getRoutingService().route(request);
       return DataFetcherResult
         .<RoutingResponse>newResult()
         .data(res)
@@ -1013,12 +1033,10 @@ public class LegacyGraphQLQueryTypeImpl
         new Coordinate(args.getLegacyGraphQLMaxLon(), args.getLegacyGraphQLMaxLat())
       );
 
-      Stream<Stop> stopStream = getRoutingService(environment)
-        .getStopSpatialIndex()
-        .query(envelope)
+      Stream<Stop> stopStream = getTransitService(environment)
+        .queryStopSpatialIndex(envelope)
         .stream()
-        .filter(transitStopVertex -> envelope.contains(transitStopVertex.getCoordinate()))
-        .map(TransitStopVertex::getStop);
+        .filter(stop -> envelope.contains(stop.getCoordinate().asJtsCoordinate()));
 
       if (args.getLegacyGraphQLFeeds() != null) {
         List<String> feedIds = Lists.newArrayList(args.getLegacyGraphQLFeeds());
@@ -1063,8 +1081,7 @@ public class LegacyGraphQLQueryTypeImpl
   public DataFetcher<Trip> trip() {
     return environment ->
       getTransitService(environment)
-        .getTripForId()
-        .get(
+        .getTripForId(
           FeedScopedId.parseId(
             new LegacyGraphQLTypes.LegacyGraphQLQueryTypeTripArgs(environment.getArguments())
               .getLegacyGraphQLId()
@@ -1077,7 +1094,7 @@ public class LegacyGraphQLQueryTypeImpl
     return environment -> {
       var args = new LegacyGraphQLTypes.LegacyGraphQLQueryTypeTripsArgs(environment.getArguments());
 
-      Stream<Trip> tripStream = getTransitService(environment).getTripForId().values().stream();
+      Stream<Trip> tripStream = getTransitService(environment).getAllTrips().stream();
 
       if (args.getLegacyGraphQLFeeds() != null) {
         List<String> feeds = StreamSupport

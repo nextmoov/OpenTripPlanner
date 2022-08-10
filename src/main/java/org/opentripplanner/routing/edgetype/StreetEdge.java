@@ -13,9 +13,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.impl.PackedCoordinateSequence;
 import org.opentripplanner.common.TurnRestriction;
 import org.opentripplanner.common.TurnRestrictionType;
-import org.opentripplanner.common.geometry.CompactLineString;
 import org.opentripplanner.common.geometry.DirectionUtils;
-import org.opentripplanner.common.geometry.GeometryUtils;
 import org.opentripplanner.common.geometry.SphericalDistanceLibrary;
 import org.opentripplanner.common.model.P2;
 import org.opentripplanner.graph_builder.linking.DisposableEdgeCollection;
@@ -31,9 +29,11 @@ import org.opentripplanner.routing.vertextype.BarrierVertex;
 import org.opentripplanner.routing.vertextype.IntersectionVertex;
 import org.opentripplanner.routing.vertextype.SplitterVertex;
 import org.opentripplanner.routing.vertextype.StreetVertex;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.transit.model.basic.NonLocalizedString;
 import org.opentripplanner.util.BitSetUtils;
-import org.opentripplanner.util.I18NString;
-import org.opentripplanner.util.NonLocalizedString;
+import org.opentripplanner.util.geometry.CompactLineStringUtils;
+import org.opentripplanner.util.geometry.GeometryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,10 +82,17 @@ public class StreetEdge
 
   /**
    * bicycleSafetyWeight = length * bicycleSafetyFactor. For example, a 100m street with a safety
-   * factor of 2.0 will be considered in term of safety cost as the same as a 150m street with a
+   * factor of 2.0 will be considered in term of safety cost as the same as a 200m street with a
    * safety factor of 1.0.
    */
   protected float bicycleSafetyFactor;
+
+  /**
+   * walkSafetyFactor = length * walkSafetyFactor. For example, a 100m street with a safety
+   * factor of 2.0 will be considered in term of safety cost as the same as a 200m street with a
+   * safety factor of 1.0.
+   */
+  protected float walkSafetyFactor;
 
   private byte[] compactGeometry;
 
@@ -148,6 +155,7 @@ public class StreetEdge
       );
     }
     this.bicycleSafetyFactor = 1.0f;
+    this.walkSafetyFactor = 1.0f;
     this.name = name;
     this.setPermission(permission);
     this.setCarSpeed(DEFAULT_CAR_SPEED);
@@ -339,6 +347,28 @@ public class StreetEdge
       : bicycleSafetyFactor * getDistanceMeters();
   }
 
+  public float getWalkSafetyFactor() {
+    return walkSafetyFactor;
+  }
+
+  public void setWalkSafetyFactor(float walkSafetyFactor) {
+    if (hasElevationExtension()) {
+      throw new IllegalStateException(
+        "A walk safety factor may not be set if an elevation extension is set."
+      );
+    }
+    if (!Float.isFinite(walkSafetyFactor) || walkSafetyFactor <= 0) {
+      throw new IllegalArgumentException("Invalid walkSafetyFactor: " + walkSafetyFactor);
+    }
+    this.walkSafetyFactor = walkSafetyFactor;
+  }
+
+  public double getEffectiveWalkSafetyDistance() {
+    return elevationExtension != null
+      ? elevationExtension.getEffectiveWalkSafetyDistance()
+      : walkSafetyFactor * getDistanceMeters();
+  }
+
   public String toString() {
     return (
       "StreetEdge(" +
@@ -426,7 +456,7 @@ public class StreetEdge
   }
 
   public LineString getGeometry() {
-    return CompactLineString.uncompactLineString(
+    return CompactLineStringUtils.uncompactLineString(
       fromv.getLon(),
       fromv.getLat(),
       tov.getLon(),
@@ -450,7 +480,7 @@ public class StreetEdge
 
   private void setGeometry(LineString geometry) {
     this.compactGeometry =
-      CompactLineString.compactLineString(
+      CompactLineStringUtils.compactLineString(
         fromv.getLon(),
         fromv.getLat(),
         tov.getLon(),
@@ -847,6 +877,7 @@ public class StreetEdge
   ) {
     splitEdge.flags = this.flags;
     splitEdge.setBicycleSafetyFactor(bicycleSafetyFactor);
+    splitEdge.setWalkSafetyFactor(walkSafetyFactor);
     splitEdge.setStreetClass(getStreetClass());
     splitEdge.setCarSpeed(getCarSpeed());
     splitEdge.setElevationExtensionUsingParent(this, fromDistance, toDistance);
@@ -1151,7 +1182,13 @@ public class StreetEdge
       weight *= nonWheelchairReluctance.get();
     } else {
       // take slopes into account when walking
-      time = weight = (getEffectiveWalkDistance() / speed);
+      time = getEffectiveWalkDistance() / speed;
+      weight =
+        getEffectiveWalkSafetyDistance() *
+        routingRequest.walkSafetyFactor +
+        getEffectiveWalkDistance() *
+        (1 - routingRequest.walkSafetyFactor);
+      weight /= speed;
       weight *= nonWheelchairReluctance.get();
     }
     return new TraversalCosts(time, weight);

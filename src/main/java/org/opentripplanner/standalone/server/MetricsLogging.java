@@ -17,7 +17,8 @@ import io.micrometer.core.instrument.binder.system.ProcessorMetrics;
 import io.micrometer.core.instrument.binder.system.UptimeMetrics;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
-import org.opentripplanner.routing.graph.Graph;
+import org.opentripplanner.transit.raptor.configure.RaptorConfig;
+import org.opentripplanner.transit.service.TransitModel;
 
 /**
  * This class is responsible for wiring up various metrics to micrometer, which we use for
@@ -25,7 +26,7 @@ import org.opentripplanner.routing.graph.Graph;
  */
 public class MetricsLogging {
 
-  public MetricsLogging(OTPServer otpServer) {
+  public MetricsLogging(TransitModel transitModel, RaptorConfig<?> raptorConfig) {
     new ClassLoaderMetrics().bindTo(Metrics.globalRegistry);
     new FileDescriptorMetrics().bindTo(Metrics.globalRegistry);
     new JvmCompilationMetrics().bindTo(Metrics.globalRegistry);
@@ -38,12 +39,9 @@ public class MetricsLogging {
     new ProcessorMetrics().bindTo(Metrics.globalRegistry);
     new UptimeMetrics().bindTo(Metrics.globalRegistry);
 
-    Router router = otpServer.getRouter();
-    Graph graph = router.graph;
-
-    if (graph.getTransitLayer() != null) {
+    if (transitModel.getTransitLayer() != null) {
       new GuavaCacheMetrics(
-        graph.getTransitLayer().getTransferCache().getTransferCache(),
+        transitModel.getTransitLayer().getTransferCache().getTransferCache(),
         "raptorTransfersCache",
         List.of(Tag.of("cache", "raptorTransfers"))
       )
@@ -56,25 +54,25 @@ public class MetricsLogging {
     )
       .bindTo(Metrics.globalRegistry);
 
-    if (graph.updaterManager != null) {
+    if (transitModel.getUpdaterManager() != null) {
       new ExecutorServiceMetrics(
-        graph.updaterManager.getUpdaterPool(),
+        transitModel.getUpdaterManager().getUpdaterPool(),
         "graphUpdaters",
         List.of(Tag.of("pool", "graphUpdaters"))
       )
         .bindTo(Metrics.globalRegistry);
 
       new ExecutorServiceMetrics(
-        graph.updaterManager.getScheduler(),
+        transitModel.getUpdaterManager().getScheduler(),
         "graphUpdateScheduler",
         List.of(Tag.of("pool", "graphUpdateScheduler"))
       )
         .bindTo(Metrics.globalRegistry);
     }
 
-    if (router.raptorConfig.isMultiThreaded()) {
+    if (raptorConfig.isMultiThreaded()) {
       new ExecutorServiceMetrics(
-        router.raptorConfig.threadPool(),
+        raptorConfig.threadPool(),
         "raptorHeuristics",
         List.of(Tag.of("pool", "raptorHeuristics"))
       )

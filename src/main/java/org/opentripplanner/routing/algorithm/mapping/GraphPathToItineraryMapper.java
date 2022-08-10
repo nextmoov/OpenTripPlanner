@@ -7,12 +7,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.impl.PackedCoordinateSequence;
 import org.opentripplanner.api.resource.CoordinateArrayListSequence;
-import org.opentripplanner.common.geometry.GeometryUtils;
 import org.opentripplanner.common.model.P2;
 import org.opentripplanner.ext.flex.FlexibleTransitLeg;
 import org.opentripplanner.ext.flex.edgetype.FlexTripEdge;
@@ -39,8 +37,9 @@ import org.opentripplanner.routing.vertextype.StreetVertex;
 import org.opentripplanner.routing.vertextype.TransitStopVertex;
 import org.opentripplanner.routing.vertextype.VehicleParkingEntranceVertex;
 import org.opentripplanner.routing.vertextype.VehicleRentalPlaceVertex;
-import org.opentripplanner.util.I18NString;
+import org.opentripplanner.transit.model.basic.I18NString;
 import org.opentripplanner.util.OTPFeature;
+import org.opentripplanner.util.geometry.GeometryUtils;
 
 /**
  * A mapper class used in converting internal GraphPaths to Itineraries, which are returned by the
@@ -51,18 +50,15 @@ import org.opentripplanner.util.OTPFeature;
 public class GraphPathToItineraryMapper {
 
   private final ZoneId timeZone;
-  private final AlertToLegMapper alertToLegMapper;
   private final StreetNotesService streetNotesService;
   private final double ellipsoidToGeoidDifference;
 
   public GraphPathToItineraryMapper(
-    TimeZone timeZone,
-    AlertToLegMapper alertToLegMapper,
+    ZoneId timeZone,
     StreetNotesService streetNotesService,
     double ellipsoidToGeoidDifference
   ) {
-    this.timeZone = timeZone.toZoneId();
-    this.alertToLegMapper = alertToLegMapper;
+    this.timeZone = timeZone;
     this.streetNotesService = streetNotesService;
     this.ellipsoidToGeoidDifference = ellipsoidToGeoidDifference;
   }
@@ -182,20 +178,21 @@ public class GraphPathToItineraryMapper {
         forwardState.backEdge instanceof FlexTripEdge || backState.backEdge instanceof FlexTripEdge;
       var rentalChange = isRentalPickUp(backState) || isRentalDropOff(backState);
       var parkingChange = backState.isVehicleParked() != forwardState.isVehicleParked();
+      var carPickupChange = backState.getCarPickupState() != forwardState.getCarPickupState();
 
-      if (parkingChange || flexChange || rentalChange) {
+      if (parkingChange || flexChange || rentalChange || carPickupChange) {
         int nextBreak = i;
 
-        /* Remove the state for actually parking (traversing VehicleParkingEdge) from the
+        if (nextBreak > previousBreak) {
+          legsStates.add(states.subList(previousBreak, nextBreak + 1));
+        }
+
+        /* Remove the state for actually parking (traversing a VehicleParkingEdge) from the
          * states so that the leg from/to edges correspond to the actual entrances.
          * The actual time for parking is added to the walking leg in generateLeg().
          */
         if (parkingChange) {
           nextBreak++;
-        }
-
-        if (nextBreak > previousBreak) {
-          legsStates.add(states.subList(previousBreak, nextBreak + 1));
         }
 
         previousBreak = nextBreak;
@@ -257,25 +254,32 @@ public class GraphPathToItineraryMapper {
    * @param states The states that go with the leg
    */
   private static TraverseMode resolveMode(List<State> states) {
-    for (State state : states) {
-      TraverseMode mode = state.getNonTransitMode();
+    return states
+      .stream()
+      // The first state is part of the previous leg
+      .skip(1)
+      .map(state -> {
+        var mode = state.getNonTransitMode();
 
-      if (mode != null) {
-        // Resolve correct mode if renting vehicle
-        if (state.isRentingVehicle()) {
-          return switch (state.stateData.rentalVehicleFormFactor) {
-            case BICYCLE, OTHER -> TraverseMode.BICYCLE;
-            case SCOOTER, MOPED -> TraverseMode.SCOOTER;
-            case CAR -> TraverseMode.CAR;
-          };
-        } else {
-          return mode;
+        if (mode != null) {
+          // Resolve correct mode if renting vehicle
+          if (state.isRentingVehicle()) {
+            return switch (state.stateData.rentalVehicleFormFactor) {
+              case BICYCLE, OTHER -> TraverseMode.BICYCLE;
+              case SCOOTER, MOPED -> TraverseMode.SCOOTER;
+              case CAR -> TraverseMode.CAR;
+            };
+          } else {
+            return mode;
+          }
         }
-      }
-    }
 
-    // Fallback to walking
-    return TraverseMode.WALK;
+        return null;
+      })
+      .filter(Objects::nonNull)
+      .findFirst()
+      // Fallback to walking
+      .orElse(TraverseMode.WALK);
   }
 
   private static List<P2<Double>> encodeElevationProfileWithNaN(
@@ -357,10 +361,7 @@ public class GraphPathToItineraryMapper {
     ZonedDateTime endTime = toState.getTime().atZone(timeZone);
     int generalizedCost = (int) (toState.getWeight() - fromState.getWeight());
 
-    Leg leg = new FlexibleTransitLeg(flexEdge, startTime, endTime, generalizedCost);
-
-    alertToLegMapper.addTransitAlertPatchesToLeg(leg, true);
-    return leg;
+    return new FlexibleTransitLeg(flexEdge, startTime, endTime, generalizedCost);
   }
 
   /**

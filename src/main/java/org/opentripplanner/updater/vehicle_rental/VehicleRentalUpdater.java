@@ -22,6 +22,7 @@ import org.opentripplanner.routing.vehicle_rental.VehicleRentalPlace;
 import org.opentripplanner.routing.vehicle_rental.VehicleRentalStationService;
 import org.opentripplanner.routing.vertextype.VehicleRentalPlaceVertex;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
+import org.opentripplanner.transit.service.TransitModel;
 import org.opentripplanner.updater.DataSource;
 import org.opentripplanner.updater.GraphWriterRunnable;
 import org.opentripplanner.updater.PollingGraphUpdater;
@@ -71,7 +72,7 @@ public class VehicleRentalUpdater extends PollingGraphUpdater {
   }
 
   @Override
-  public void setup(Graph graph) {
+  public void setup(Graph graph, TransitModel transitModel) {
     // Creation of network linker library will not modify the graph
     linker = graph.getLinker();
     // Adding a vehicle rental station service needs a graph writer runnable
@@ -86,6 +87,11 @@ public class VehicleRentalUpdater extends PollingGraphUpdater {
   @Override
   public String toString() {
     return ToStringBuilder.of(VehicleRentalUpdater.class).addObj("source", source).toString();
+  }
+
+  @Override
+  public String getConfigRef() {
+    return toString();
   }
 
   @Override
@@ -113,7 +119,7 @@ public class VehicleRentalUpdater extends PollingGraphUpdater {
     }
 
     @Override
-    public void run(Graph graph) {
+    public void run(Graph graph, TransitModel transitModel) {
       // Apply stations to graph
       Set<FeedScopedId> stationSet = new HashSet<>();
 

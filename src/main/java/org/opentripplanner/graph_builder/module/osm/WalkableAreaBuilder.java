@@ -18,7 +18,6 @@ import org.locationtech.jts.geom.MultiLineString;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
-import org.opentripplanner.common.geometry.GeometryUtils;
 import org.opentripplanner.common.geometry.SphericalDistanceLibrary;
 import org.opentripplanner.common.model.P2;
 import org.opentripplanner.graph_builder.DataImportIssueStore;
@@ -47,7 +46,8 @@ import org.opentripplanner.routing.spt.GraphPath;
 import org.opentripplanner.routing.spt.ShortestPathTree;
 import org.opentripplanner.routing.vertextype.IntersectionVertex;
 import org.opentripplanner.routing.vertextype.OsmVertex;
-import org.opentripplanner.util.I18NString;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.util.geometry.GeometryUtils;
 
 /**
  * Theoretically, it is not correct to build the visibility graph on the joined polygon of areas
@@ -641,8 +641,11 @@ public class WalkableAreaBuilder {
         wayPropertiesCache.put(areaEntity, wayData);
       }
 
-      Double safety = wayPropertiesCache.get(areaEntity).getSafetyFeatures().first;
-      namedArea.setBicycleSafetyMultiplier(safety);
+      Double bicycleSafety = wayPropertiesCache.get(areaEntity).getBicycleSafetyFeatures().first;
+      namedArea.setBicycleSafetyMultiplier(bicycleSafety);
+
+      Double walkSafety = wayPropertiesCache.get(areaEntity).getWalkSafetyFeatures().first;
+      namedArea.setWalkSafetyMultiplier(walkSafety);
 
       namedArea.setOriginalEdges(intersection);
 

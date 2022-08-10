@@ -3,7 +3,6 @@ package org.opentripplanner.ext.transmodelapi.model.timetable;
 import static org.opentripplanner.ext.transmodelapi.model.EnumTypes.TRANSPORT_MODE;
 import static org.opentripplanner.ext.transmodelapi.model.EnumTypes.TRANSPORT_SUBMODE;
 
-import com.google.common.collect.Lists;
 import graphql.AssertException;
 import graphql.Scalars;
 import graphql.schema.DataFetchingEnvironment;
@@ -22,10 +21,9 @@ import org.locationtech.jts.geom.LineString;
 import org.opentripplanner.ext.transmodelapi.model.EnumTypes;
 import org.opentripplanner.ext.transmodelapi.model.TransmodelTransportSubmode;
 import org.opentripplanner.ext.transmodelapi.support.GqlUtil;
-import org.opentripplanner.model.TripPattern;
 import org.opentripplanner.model.TripTimeOnDate;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.routing.TripTimesShortHelper;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.model.site.StopLocation;
 import org.opentripplanner.transit.model.timetable.Trip;
 import org.opentripplanner.util.PolylineEncoder;
@@ -73,7 +71,6 @@ public class ServiceJourneyType {
               .getCalendarService()
               .getServiceDatesForServiceId(((trip(environment)).getServiceId()))
               .stream()
-              .map(ServiceDate::toLocalDate)
               .sorted()
               .collect(Collectors.toList())
           )
@@ -158,6 +155,7 @@ public class ServiceJourneyType {
           .newFieldDefinition()
           .name("wheelchairAccessible")
           .type(EnumTypes.WHEELCHAIR_BOARDING)
+          .dataFetcher(environment -> trip(environment).getWheelchairBoarding())
           .description("Whether service journey is accessible with wheelchair.")
           .build()
       )
@@ -174,7 +172,7 @@ public class ServiceJourneyType {
           .newFieldDefinition()
           .name("journeyPattern")
           .type(journeyPatternType)
-          .dataFetcher(env -> GqlUtil.getTransitService(env).getPatternForTrip().get(trip(env)))
+          .dataFetcher(env -> GqlUtil.getTransitService(env).getPatternForTrip(trip(env)))
           .build()
       )
       .field(
@@ -205,23 +203,20 @@ public class ServiceJourneyType {
 
             List<StopLocation> stops = GqlUtil
               .getTransitService(environment)
-              .getPatternForTrip()
-              .get(trip(environment))
+              .getPatternForTrip(trip(environment))
               .getStops();
 
             if (first != null && last != null) {
               throw new AssertException("Both first and last can't be defined simultaneously.");
             } else if (first != null) {
-              stops = stops.stream().limit(Long.valueOf(first)).collect(Collectors.toList());
+              if (first > stops.size()) {
+                return stops.subList(0, first);
+              }
             } else if (last != null) {
-              List<StopLocation> reversedStops = Lists
-                .reverse(stops)
-                .stream()
-                .limit(Long.valueOf(last))
-                .collect(Collectors.toList());
-              stops = Lists.reverse(reversedStops);
+              if (last > stops.size()) {
+                return stops.subList(stops.size() - last, stops.size());
+              }
             }
-
             return stops;
           })
           .build()
@@ -238,7 +233,7 @@ public class ServiceJourneyType {
           .dataFetcher(env -> {
             Trip trip = trip(env);
             return TripTimeOnDate.fromTripTimes(
-              GqlUtil.getTransitService(env).getPatternForTrip().get(trip).getScheduledTimetable(),
+              GqlUtil.getTransitService(env).getPatternForTrip(trip).getScheduledTimetable(),
               trip
             );
           })
@@ -267,10 +262,8 @@ public class ServiceJourneyType {
             var serviceDate = Optional
               .ofNullable(environment.getArgument("date"))
               .map(LocalDate.class::cast)
-              .map(ServiceDate::new)
-              .orElse(new ServiceDate());
+              .orElse(LocalDate.now(GqlUtil.getTransitService(environment).getTimeZone()));
             return TripTimesShortHelper.getTripTimesShort(
-              GqlUtil.getRoutingService(environment),
               GqlUtil.getTransitService(environment),
               trip(environment),
               serviceDate
@@ -289,8 +282,7 @@ public class ServiceJourneyType {
           .dataFetcher(environment -> {
             TripPattern tripPattern = GqlUtil
               .getTransitService(environment)
-              .getPatternForTrip()
-              .get(trip(environment));
+              .getPatternForTrip(trip(environment));
             if (tripPattern == null) {
               return null;
             }
@@ -320,7 +312,7 @@ public class ServiceJourneyType {
           .type(new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ptSituationElementType))))
           .dataFetcher(environment ->
             GqlUtil
-              .getRoutingService(environment)
+              .getTransitService(environment)
               .getTransitAlertService()
               .getTripAlerts(trip(environment).getId(), null)
           )

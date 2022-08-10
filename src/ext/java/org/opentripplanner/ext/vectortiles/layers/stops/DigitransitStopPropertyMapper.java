@@ -10,27 +10,25 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.opentripplanner.common.model.T2;
 import org.opentripplanner.ext.vectortiles.PropertyMapper;
-import org.opentripplanner.model.TripPattern;
-import org.opentripplanner.routing.graph.Graph;
-import org.opentripplanner.routing.vertextype.TransitStopVertex;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.model.site.Stop;
+import org.opentripplanner.transit.service.TransitService;
 
-public class DigitransitStopPropertyMapper extends PropertyMapper<TransitStopVertex> {
+public class DigitransitStopPropertyMapper extends PropertyMapper<Stop> {
 
-  private final Graph graph;
+  private final TransitService transitService;
 
-  private DigitransitStopPropertyMapper(Graph graph) {
-    this.graph = graph;
+  private DigitransitStopPropertyMapper(TransitService transitService) {
+    this.transitService = transitService;
   }
 
-  public static DigitransitStopPropertyMapper create(Graph graph) {
-    return new DigitransitStopPropertyMapper(graph);
+  public static DigitransitStopPropertyMapper create(TransitService transitService) {
+    return new DigitransitStopPropertyMapper(transitService);
   }
 
   @Override
-  public Collection<T2<String, Object>> map(TransitStopVertex input) {
-    Stop stop = input.getStop();
-    Collection<TripPattern> patternsForStop = graph.index.getPatternsForStop(stop);
+  public Collection<T2<String, Object>> map(Stop stop) {
+    Collection<TripPattern> patternsForStop = transitService.getPatternsForStop(stop);
 
     String type = patternsForStop
       .stream()

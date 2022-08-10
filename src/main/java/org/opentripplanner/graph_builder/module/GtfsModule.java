@@ -1,12 +1,11 @@
 package org.opentripplanner.graph_builder.module;
 
-import com.google.common.collect.Sets;
 import java.awt.Color;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,11 +24,13 @@ import org.onebusaway.gtfs.model.Trip;
 import org.onebusaway.gtfs.serialization.GtfsReader;
 import org.onebusaway.gtfs.services.GenericMutableDao;
 import org.onebusaway.gtfs.services.GtfsMutableRelationalDao;
+import org.opentripplanner.ext.fares.impl.DefaultFareServiceFactory;
 import org.opentripplanner.ext.flex.FlexTripsMapper;
 import org.opentripplanner.graph_builder.DataImportIssueStore;
+import org.opentripplanner.graph_builder.model.GraphBuilderModule;
 import org.opentripplanner.graph_builder.model.GtfsBundle;
-import org.opentripplanner.graph_builder.module.geometry.GeometryAndBlockProcessor;
-import org.opentripplanner.graph_builder.services.GraphBuilderModule;
+import org.opentripplanner.graph_builder.module.geometry.GeometryProcessor;
+import org.opentripplanner.graph_builder.module.interlining.InterlineProcessor;
 import org.opentripplanner.gtfs.GenerateTripPatternsOperation;
 import org.opentripplanner.gtfs.RepairStopTimesForEachTripOperation;
 import org.opentripplanner.gtfs.mapping.GTFSToOtpTransitServiceMapper;
@@ -38,10 +39,12 @@ import org.opentripplanner.model.TripStopTimes;
 import org.opentripplanner.model.calendar.CalendarServiceData;
 import org.opentripplanner.model.calendar.ServiceDateInterval;
 import org.opentripplanner.model.impl.OtpTransitServiceBuilder;
+import org.opentripplanner.routing.fares.FareService;
 import org.opentripplanner.routing.fares.FareServiceFactory;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.standalone.config.BuildConfig;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
+import org.opentripplanner.transit.service.TransitModel;
 import org.opentripplanner.util.OTPFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +53,7 @@ public class GtfsModule implements GraphBuilderModule {
 
   private static final Logger LOG = LoggerFactory.getLogger(GtfsModule.class);
   private final EntityHandler counter = new EntityCounter();
-  private final Set<String> agencyIdsSeen = Sets.newHashSet();
+  private final Set<String> agencyIdsSeen = new HashSet<>();
   /**
    * @see BuildConfig#transitServiceStart
    * @see BuildConfig#transitServiceEnd
@@ -59,47 +62,58 @@ public class GtfsModule implements GraphBuilderModule {
   private final List<GtfsBundle> gtfsBundles;
   private final FareServiceFactory fareServiceFactory;
   private final boolean discardMinTransferTimes;
-  private DataImportIssueStore issueStore;
+  private final boolean blockBasedInterlining;
+  private final int maxInterlineDistance;
+
+  private final TransitModel transitModel;
+  private final Graph graph;
+  private final DataImportIssueStore issueStore;
   private int nextAgencyId = 1; // used for generating agency IDs to resolve ID conflicts
 
   public GtfsModule(
     List<GtfsBundle> bundles,
+    TransitModel transitModel,
+    Graph graph,
+    DataImportIssueStore issueStore,
     ServiceDateInterval transitPeriodLimit,
     FareServiceFactory fareServiceFactory,
-    boolean discardMinTransferTimes
+    boolean discardMinTransferTimes,
+    boolean blockBasedInterlining,
+    int maxInterlineDistance
   ) {
     this.gtfsBundles = bundles;
+    this.transitModel = transitModel;
+    this.graph = graph;
+    this.issueStore = issueStore;
     this.transitPeriodLimit = transitPeriodLimit;
     this.fareServiceFactory = fareServiceFactory;
     this.discardMinTransferTimes = discardMinTransferTimes;
+    this.blockBasedInterlining = blockBasedInterlining;
+    this.maxInterlineDistance = maxInterlineDistance;
   }
 
-  public GtfsModule(List<GtfsBundle> bundles, ServiceDateInterval transitPeriodLimit) {
-    this(bundles, transitPeriodLimit, null, false);
-  }
-
-  public List<String> provides() {
-    List<String> result = new ArrayList<>();
-    result.add("transit");
-    return result;
+  public GtfsModule(
+    List<GtfsBundle> bundles,
+    TransitModel transitModel,
+    Graph graph,
+    ServiceDateInterval transitPeriodLimit
+  ) {
+    this(
+      bundles,
+      transitModel,
+      graph,
+      DataImportIssueStore.noopIssueStore(),
+      transitPeriodLimit,
+      new DefaultFareServiceFactory(),
+      false,
+      true,
+      100
+    );
   }
 
   @Override
-  public void buildGraph(
-    Graph graph,
-    HashMap<Class<?>, Object> extra,
-    DataImportIssueStore issueStore
-  ) {
-    this.issueStore = issueStore;
-
-    // we're about to add another agency to the graph, so clear the cached timezone
-    // in case it should change
-    // OTP doesn't currently support multiple time zones in a single graph;
-    // at least this way we catch the error and log it instead of silently ignoring
-    // because the time zone from the first agency is cached
-    graph.clearTimeZone();
-
-    CalendarServiceData calendarServiceData = graph.getCalendarDataService();
+  public void buildGraph() {
+    CalendarServiceData calendarServiceData = new CalendarServiceData();
 
     boolean hasTransit = false;
 
@@ -112,11 +126,12 @@ public class GtfsModule implements GraphBuilderModule {
           discardMinTransferTimes,
           gtfsDao
         );
-        mapper.mapStopTripAndRouteDatantoBuilder();
+        mapper.mapStopTripAndRouteDataIntoBuilder();
 
         OtpTransitServiceBuilder builder = mapper.getBuilder();
+        var fareRulesService = mapper.getFareRulesService();
 
-        builder.limitServiceDays(transitPeriodLimit, issueStore);
+        builder.limitServiceDays(transitPeriodLimit);
 
         calendarServiceData.add(builder.buildCalendarServiceData());
 
@@ -124,19 +139,43 @@ public class GtfsModule implements GraphBuilderModule {
           builder.getFlexTripsById().addAll(FlexTripsMapper.createFlexTrips(builder, issueStore));
         }
 
-        repairStopTimesForEachTrip(builder.getStopTimesSortedByTrip());
+        repairStopTimesForEachTrip(builder.getStopTimesSortedByTrip(), issueStore);
+
+        GeometryProcessor geometryProcessor = new GeometryProcessor(
+          builder,
+          gtfsBundle.getMaxStopToShapeSnapDistance(),
+          issueStore
+        );
 
         // NB! The calls below have side effects - the builder state is updated!
-        createTripPatterns(graph, builder, calendarServiceData.getServiceIds());
+        createTripPatterns(
+          graph,
+          transitModel,
+          builder,
+          calendarServiceData.getServiceIds(),
+          geometryProcessor,
+          issueStore
+        );
 
-        OtpTransitService transitModel = builder.build();
+        OtpTransitService otpTransitService = builder.build();
 
         // if this or previously processed gtfs bundle has transit that has not been filtered out
-        hasTransit = hasTransit || transitModel.hasActiveTransit();
+        hasTransit = hasTransit || otpTransitService.hasActiveTransit();
 
-        addTransitModelToGraph(graph, gtfsBundle, transitModel);
+        addTransitModelToGraph(graph, transitModel, gtfsBundle, otpTransitService);
 
-        createGeometryAndBlockProcessor(gtfsBundle, transitModel).run(graph, issueStore);
+        if (blockBasedInterlining) {
+          new InterlineProcessor(
+            transitModel.getTransferService(),
+            builder.getStaySeatedNotAllowed(),
+            maxInterlineDistance,
+            issueStore
+          )
+            .run(transitModel.getAllTripPatterns());
+        }
+
+        fareServiceFactory.processGtfs(fareRulesService, otpTransitService);
+        graph.putService(FareService.class, fareServiceFactory.makeFareService());
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -146,17 +185,9 @@ public class GtfsModule implements GraphBuilderModule {
       gtfsBundles.forEach(GtfsBundle::close);
     }
 
-    graph.clearCachedCalenderService();
-    // We need to save the calendar service data so we can use it later
-    graph.putService(
-      org.opentripplanner.model.calendar.CalendarServiceData.class,
-      calendarServiceData
-    );
-    graph.updateTransitFeedValidity(calendarServiceData, issueStore);
+    transitModel.validateTimeZones();
 
-    // If the graph's hasTransit flag isn't set to true already, set it based on this module's run
-    graph.hasTransit = graph.hasTransit || hasTransit;
-    graph.calculateTransitCenter();
+    transitModel.updateCalendarServiceData(hasTransit, calendarServiceData, issueStore);
   }
 
   @Override
@@ -169,53 +200,54 @@ public class GtfsModule implements GraphBuilderModule {
   /* Private Methods */
 
   /**
-   * This method have side-effects, the {@code stopTimesByTrip} is updated.
+   * This method has side effects, the {@code stopTimesByTrip} is updated.
    */
-  private void repairStopTimesForEachTrip(TripStopTimes stopTimesByTrip) {
+  private void repairStopTimesForEachTrip(
+    TripStopTimes stopTimesByTrip,
+    DataImportIssueStore issueStore
+  ) {
     new RepairStopTimesForEachTripOperation(stopTimesByTrip, issueStore).run();
   }
 
   /**
-   * This method have side-effects, the {@code builder} is updated with new TripPatterns.
+   * This method has side effects, the {@code builder} is updated with new TripPatterns.
    */
   private void createTripPatterns(
     Graph graph,
+    TransitModel transitModel,
     OtpTransitServiceBuilder builder,
-    Set<FeedScopedId> calServiceIds
+    Set<FeedScopedId> calServiceIds,
+    GeometryProcessor geometryProcessor,
+    DataImportIssueStore issueStore
   ) {
     GenerateTripPatternsOperation buildTPOp = new GenerateTripPatternsOperation(
       builder,
-      this.issueStore,
+      issueStore,
       graph.deduplicator,
-      calServiceIds
+      calServiceIds,
+      geometryProcessor
     );
     buildTPOp.run();
-    graph.hasFrequencyService = graph.hasFrequencyService || buildTPOp.hasFrequencyBasedTrips();
-    graph.hasScheduledService = graph.hasScheduledService || buildTPOp.hasScheduledTrips();
+    transitModel.setHasFrequencyService(
+      transitModel.hasFrequencyService() || buildTPOp.hasFrequencyBasedTrips()
+    );
+    transitModel.setHasScheduledService(
+      transitModel.hasScheduledService() || buildTPOp.hasScheduledTrips()
+    );
   }
 
   private void addTransitModelToGraph(
     Graph graph,
+    TransitModel transitModel,
     GtfsBundle gtfsBundle,
-    OtpTransitService transitModel
+    OtpTransitService otpTransitService
   ) {
     AddTransitModelEntitiesToGraph.addToGraph(
       gtfsBundle.getFeedId(),
-      transitModel,
+      otpTransitService,
       gtfsBundle.subwayAccessTime,
-      graph
-    );
-  }
-
-  private GeometryAndBlockProcessor createGeometryAndBlockProcessor(
-    GtfsBundle gtfsBundle,
-    OtpTransitService transitService
-  ) {
-    return new GeometryAndBlockProcessor(
-      transitService,
-      fareServiceFactory,
-      gtfsBundle.getMaxStopToShapeSnapDistance(),
-      gtfsBundle.maxInterlineDistance
+      graph,
+      transitModel
     );
   }
 
@@ -303,7 +335,7 @@ public class GtfsModule implements GraphBuilderModule {
   /**
    * Generates routeText colors for routes with routeColor and without routeTextColor
    * <p>
-   * If route doesn't have color or already has routeColor and routeTextColor nothing is done.
+   * If a route doesn't have color or already has routeColor and routeTextColor nothing is done.
    * <p>
    * textColor can be black or white. White for dark colors and black for light colors of
    * routeColor. If color is light or dark is calculated based on luminance formula: sqrt(

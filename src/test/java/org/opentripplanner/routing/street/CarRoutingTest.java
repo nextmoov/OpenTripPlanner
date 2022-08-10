@@ -2,16 +2,17 @@ package org.opentripplanner.routing.street;
 
 import static org.opentripplanner.test.support.PolylineAssert.assertThatPolylinesAreEqual;
 
-import io.micrometer.core.instrument.Metrics;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Geometry;
 import org.opentripplanner.ConstantsForTests;
+import org.opentripplanner.TestOtpModel;
 import org.opentripplanner.model.GenericLocation;
-import org.opentripplanner.routing.algorithm.mapping.AlertToLegMapper;
 import org.opentripplanner.routing.algorithm.mapping.GraphPathToItineraryMapper;
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.core.RoutingContext;
@@ -20,8 +21,6 @@ import org.opentripplanner.routing.core.TraverseMode;
 import org.opentripplanner.routing.core.TraverseModeSet;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.impl.GraphPathFinder;
-import org.opentripplanner.standalone.config.RouterConfig;
-import org.opentripplanner.standalone.server.Router;
 import org.opentripplanner.util.PolylineEncoder;
 
 public class CarRoutingTest {
@@ -32,7 +31,9 @@ public class CarRoutingTest {
 
   @BeforeAll
   public static void setup() {
-    herrenbergGraph = ConstantsForTests.buildOsmGraph(ConstantsForTests.HERRENBERG_OSM);
+    TestOtpModel model = ConstantsForTests.buildOsmGraph(ConstantsForTests.HERRENBERG_OSM);
+    herrenbergGraph = model.graph();
+    herrenbergGraph.index();
   }
 
   /**
@@ -52,9 +53,10 @@ public class CarRoutingTest {
   @Test
   @DisplayName("car routes can contain loops (traversing the same edge twice)")
   public void shouldAllowLoopCausedByTurnRestrictions() {
-    var hindenburgStrUnderConstruction = ConstantsForTests.buildOsmGraph(
+    TestOtpModel model = ConstantsForTests.buildOsmGraph(
       ConstantsForTests.HERRENBERG_HINDENBURG_STR_UNDER_CONSTRUCTION_OSM
     );
+    var hindenburgStrUnderConstruction = model.graph();
 
     var gueltsteinerStr = new GenericLocation(48.59240, 8.87024);
     var aufDemGraben = new GenericLocation(48.59487, 8.87133);
@@ -130,12 +132,11 @@ public class CarRoutingTest {
     var temporaryVertices = new TemporaryVerticesContainer(graph, request);
     final RoutingContext routingContext = new RoutingContext(request, graph, temporaryVertices);
 
-    var gpf = new GraphPathFinder(new Router(graph, RouterConfig.DEFAULT, Metrics.globalRegistry));
+    var gpf = new GraphPathFinder(null, Duration.ofSeconds(5));
     var paths = gpf.graphPathFinderEntryPoint(routingContext);
 
     GraphPathToItineraryMapper graphPathToItineraryMapper = new GraphPathToItineraryMapper(
-      graph.getTimeZone(),
-      new AlertToLegMapper(graph.getTransitAlertService()),
+      ZoneId.of("Europe/Berlin"),
       graph.streetNotesService,
       graph.ellipsoidToGeoidDifference
     );

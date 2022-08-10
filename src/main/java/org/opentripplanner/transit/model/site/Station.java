@@ -1,13 +1,13 @@
 package org.opentripplanner.transit.model.site;
 
-import static org.opentripplanner.common.geometry.GeometryUtils.getGeometryFactory;
+import static org.opentripplanner.util.geometry.GeometryUtils.getGeometryFactory;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,11 +15,11 @@ import org.locationtech.jts.algorithm.ConvexHull;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.Point;
+import org.opentripplanner.transit.model.basic.I18NString;
 import org.opentripplanner.transit.model.basic.WgsCoordinate;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.framework.LogInfo;
-import org.opentripplanner.transit.model.framework.TransitEntity2;
-import org.opentripplanner.util.I18NString;
+import org.opentripplanner.transit.model.framework.TransitEntity;
 
 /**
  * A grouping of stops in GTFS or the lowest level grouping in NeTEx. It can be a train station, a
@@ -27,7 +27,7 @@ import org.opentripplanner.util.I18NString;
  * stop location type 1 or NeTEx monomodal StopPlace.
  */
 public class Station
-  extends TransitEntity2<Station, StationBuilder>
+  extends TransitEntity<Station, StationBuilder>
   implements StopCollection, LogInfo {
 
   public static final StopTransferPriority DEFAULT_PRIORITY = StopTransferPriority.ALLOWED;
@@ -38,7 +38,7 @@ public class Station
   private final WgsCoordinate coordinate;
   private final StopTransferPriority priority;
   private final I18NString url;
-  private final TimeZone timezone;
+  private final ZoneId timezone;
 
   // We serialize this class to json only for snapshot tests, and this creates cyclical structures
   @JsonBackReference
@@ -136,7 +136,7 @@ public class Station
   }
 
   @Nullable
-  public TimeZone getTimezone() {
+  public ZoneId getTimezone() {
     return timezone;
   }
 

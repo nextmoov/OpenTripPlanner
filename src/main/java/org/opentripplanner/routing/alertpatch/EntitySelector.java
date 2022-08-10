@@ -1,8 +1,9 @@
 package org.opentripplanner.routing.alertpatch;
 
+import java.time.LocalDate;
 import java.util.Objects;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
+import org.opentripplanner.transit.model.timetable.Direction;
 
 public interface EntitySelector {
   class Agency implements EntitySelector {
@@ -86,7 +87,7 @@ public interface EntitySelector {
   class Trip implements EntitySelector {
 
     public final FeedScopedId tripId;
-    public final ServiceDate serviceDate;
+    public final LocalDate serviceDate;
 
     private transient int hash = -1;
 
@@ -94,7 +95,7 @@ public interface EntitySelector {
       this(tripId, null);
     }
 
-    public Trip(FeedScopedId tripId, ServiceDate serviceDate) {
+    public Trip(FeedScopedId tripId, LocalDate serviceDate) {
       this.tripId = tripId;
       this.serviceDate = serviceDate;
     }
@@ -163,7 +164,7 @@ public interface EntitySelector {
       this(stopId, tripId, null);
     }
 
-    public StopAndTrip(FeedScopedId stopId, FeedScopedId tripId, ServiceDate serviceDate) {
+    public StopAndTrip(FeedScopedId stopId, FeedScopedId tripId, LocalDate serviceDate) {
       this.stopAndTrip = new StopAndRouteOrTripKey(stopId, tripId, serviceDate);
     }
 
@@ -272,19 +273,19 @@ public interface EntitySelector {
 
   class DirectionAndRoute implements EntitySelector {
 
-    public final int directionId;
+    public final Direction direction;
 
     public final FeedScopedId routeId;
 
-    public DirectionAndRoute(int directionId, FeedScopedId routeId) {
-      this.directionId = directionId;
+    public DirectionAndRoute(Direction direction, FeedScopedId routeId) {
+      this.direction = direction;
       this.routeId = routeId;
     }
 
     @Override
     public int hashCode() {
       int routeHash = Objects.hash(routeId);
-      return 41 * directionId * routeHash;
+      return 41 * direction.ordinal() * routeHash;
     }
 
     @Override
@@ -296,7 +297,7 @@ public interface EntitySelector {
         return false;
       }
       DirectionAndRoute that = (DirectionAndRoute) o;
-      return directionId == that.directionId && routeId.equals(that.routeId);
+      return direction == that.direction && routeId.equals(that.routeId);
     }
   }
 
@@ -304,7 +305,7 @@ public interface EntitySelector {
 
     public final FeedScopedId stop;
     public final FeedScopedId routeOrTrip;
-    public final ServiceDate serviceDate;
+    public final LocalDate serviceDate;
     private final transient int hash;
 
     public StopAndRouteOrTripKey(FeedScopedId stop, FeedScopedId routeOrTrip) {
@@ -314,7 +315,7 @@ public interface EntitySelector {
     public StopAndRouteOrTripKey(
       FeedScopedId stop,
       FeedScopedId routeOrTrip,
-      ServiceDate serviceDate
+      LocalDate serviceDate
     ) {
       this.stop = stop;
       this.routeOrTrip = routeOrTrip;
@@ -346,7 +347,7 @@ public interface EntitySelector {
         return false;
       }
 
-      return serviceDate != null ? serviceDate.equals(that.serviceDate) : that.serviceDate == null;
+      return Objects.equals(serviceDate, that.serviceDate);
     }
   }
 }

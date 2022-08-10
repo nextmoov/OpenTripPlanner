@@ -1,6 +1,7 @@
 package org.opentripplanner.ext.flex;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -9,12 +10,12 @@ import org.locationtech.jts.geom.LineString;
 import org.opentripplanner.ext.flex.edgetype.FlexTripEdge;
 import org.opentripplanner.model.BookingInfo;
 import org.opentripplanner.model.PickDrop;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.model.plan.Leg;
 import org.opentripplanner.model.plan.Place;
 import org.opentripplanner.model.plan.StopArrival;
 import org.opentripplanner.routing.alertpatch.TransitAlert;
 import org.opentripplanner.routing.core.TraverseMode;
+import org.opentripplanner.transit.model.basic.WheelchairAccessibility;
 import org.opentripplanner.transit.model.framework.TransitEntity;
 import org.opentripplanner.transit.model.network.Route;
 import org.opentripplanner.transit.model.organization.Agency;
@@ -79,6 +80,11 @@ public class FlexibleTransitLeg implements Leg {
   }
 
   @Override
+  public WheelchairAccessibility getTripWheelchairAccessibility() {
+    return edge.getFlexTrip().getTrip().getWheelchairBoarding();
+  }
+
+  @Override
   public TraverseMode getMode() {
     return TraverseMode.fromTransitMode(getTrip().getMode());
   }
@@ -114,7 +120,7 @@ public class FlexibleTransitLeg implements Leg {
   }
 
   @Override
-  public ServiceDate getServiceDate() {
+  public LocalDate getServiceDate() {
     return edge.flexTemplate.serviceDate;
   }
 
@@ -207,8 +213,8 @@ public class FlexibleTransitLeg implements Leg {
       .of(FlexibleTransitLeg.class)
       .addObj("from", getFrom())
       .addObj("to", getTo())
-      .addTimeCal("startTime", startTime)
-      .addTimeCal("endTime", endTime)
+      .addTime("startTime", startTime)
+      .addTime("endTime", endTime)
       .addNum("distance", getDistanceMeters(), "m")
       .addNum("cost", generalizedCost)
       .addObjOp("agencyId", getAgency(), TransitEntity::getId)

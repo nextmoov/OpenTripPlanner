@@ -8,14 +8,16 @@ import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import org.opentripplanner.transit.model.basic.SubMode;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.framework.LogInfo;
-import org.opentripplanner.transit.model.framework.TransitEntity2;
+import org.opentripplanner.transit.model.framework.TransitEntity;
 import org.opentripplanner.transit.model.organization.Agency;
 import org.opentripplanner.transit.model.organization.Branding;
 import org.opentripplanner.transit.model.organization.Operator;
 
-public final class Route extends TransitEntity2<Route, RouteBuilder> implements LogInfo {
+public final class Route extends TransitEntity<Route, RouteBuilder> implements LogInfo {
 
   private final Agency agency;
   private final Operator operator;
@@ -35,7 +37,7 @@ public final class Route extends TransitEntity2<Route, RouteBuilder> implements 
   private final String textColor;
   private final BikeAccess bikesAllowed;
 
-  public Route(RouteBuilder builder) {
+  Route(RouteBuilder builder) {
     super(builder.getId());
     // Required fields
     this.agency = requireNonNull(builder.getAgency());

@@ -9,13 +9,13 @@ import org.opentripplanner.routing.algorithm.raptoradapter.transit.TripPatternWi
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.api.request.StreetMode;
 import org.opentripplanner.routing.api.request.WheelchairAccessibilityRequest;
-import org.opentripplanner.routing.graph.GraphIndex;
-import org.opentripplanner.routing.trippattern.TripTimes;
+import org.opentripplanner.transit.model.basic.MainAndSubMode;
 import org.opentripplanner.transit.model.basic.WheelchairAccessibility;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.network.BikeAccess;
-import org.opentripplanner.transit.model.network.MainAndSubMode;
 import org.opentripplanner.transit.model.timetable.Trip;
+import org.opentripplanner.transit.model.timetable.TripTimes;
+import org.opentripplanner.transit.service.TransitService;
 
 public class RoutingRequestTransitDataProviderFilter implements TransitDataProviderFilter {
 
@@ -47,13 +47,16 @@ public class RoutingRequestTransitDataProviderFilter implements TransitDataProvi
     this.transitModeFilter = AllowTransitModeFilter.of(allowedTransitModes);
   }
 
-  public RoutingRequestTransitDataProviderFilter(RoutingRequest request, GraphIndex graphIndex) {
+  public RoutingRequestTransitDataProviderFilter(
+    RoutingRequest request,
+    TransitService transitService
+  ) {
     this(
       request.modes.transferMode == StreetMode.BIKE,
       request.wheelchairAccessibility,
       request.includePlannedCancellations,
       request.modes.transitModes,
-      request.getBannedRoutes(graphIndex.getAllRoutes()),
+      request.getBannedRoutes(transitService.getAllRoutes()),
       request.bannedTrips
     );
   }
@@ -91,7 +94,7 @@ public class RoutingRequestTransitDataProviderFilter implements TransitDataProvi
     if (wheelchairAccessibility.enabled()) {
       if (
         wheelchairAccessibility.trip().onlyConsiderAccessible() &&
-        trip.getWheelchairBoarding() != WheelchairAccessibility.POSSIBLE
+        tripTimes.getWheelchairAccessibility() != WheelchairAccessibility.POSSIBLE
       ) {
         return false;
       }

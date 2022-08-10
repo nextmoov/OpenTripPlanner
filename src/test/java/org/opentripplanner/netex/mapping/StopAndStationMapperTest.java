@@ -68,7 +68,7 @@ public class StopAndStationMapperTest {
       MappingSupport.ID_FACTORY,
       new HierarchicalVersionMapById<>(),
       null,
-      new DataImportIssueStore(false)
+      DataImportIssueStore.noopIssueStore()
     );
 
     stopAndStationMapper.mapParentAndChildStops(List.of(stopPlace));
@@ -146,7 +146,7 @@ public class StopAndStationMapperTest {
       MappingSupport.ID_FACTORY,
       quaysById,
       null,
-      new DataImportIssueStore(false)
+      DataImportIssueStore.noopIssueStore()
     );
 
     stopMapper.mapParentAndChildStops(stopPlaces);
@@ -185,7 +185,7 @@ public class StopAndStationMapperTest {
 
     assertEquals(59.909911, childStop1.getLat(), 0.0001);
     assertEquals(10.753008, childStop1.getLon(), 0.0001);
-    assertEquals("A", childStop1.getCode());
+    assertEquals("A", childStop1.getPlatformCode());
   }
 
   private static StopPlace createStopPlace(

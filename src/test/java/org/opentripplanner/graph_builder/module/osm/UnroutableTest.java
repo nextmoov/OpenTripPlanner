@@ -1,13 +1,14 @@
 package org.opentripplanner.graph_builder.module.osm;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.opentripplanner.graph_builder.DataImportIssueStore.noopIssueStore;
 
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.opentripplanner.openstreetmap.OpenStreetMapProvider;
@@ -20,6 +21,9 @@ import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.graph.Vertex;
 import org.opentripplanner.routing.spt.GraphPath;
 import org.opentripplanner.routing.spt.ShortestPathTree;
+import org.opentripplanner.transit.model.framework.Deduplicator;
+import org.opentripplanner.transit.service.StopModel;
+import org.opentripplanner.transit.service.TransitModel;
 
 /**
  * Verify that OSM ways that represent proposed or as yet unbuilt roads are not used for routing.
@@ -30,17 +34,27 @@ import org.opentripplanner.routing.spt.ShortestPathTree;
  */
 public class UnroutableTest {
 
-  private final Graph graph = new Graph();
+  private Graph graph;
 
   @BeforeEach
   public void setUp() throws Exception {
+    var deduplicator = new Deduplicator();
+    var stopModel = new StopModel();
+    graph = new Graph(stopModel, deduplicator);
+    TransitModel transitModel = new TransitModel(stopModel, deduplicator);
+
     URL osmDataUrl = getClass().getResource("bridge_construction.osm.pbf");
     File osmDataFile = new File(URLDecoder.decode(osmDataUrl.getFile(), StandardCharsets.UTF_8));
     OpenStreetMapProvider provider = new OpenStreetMapProvider(osmDataFile, true);
-    OpenStreetMapModule osmBuilder = new OpenStreetMapModule(provider);
+    OpenStreetMapModule osmBuilder = new OpenStreetMapModule(
+      List.of(provider),
+      Set.of(),
+      graph,
+      transitModel.getTimeZone(),
+      noopIssueStore()
+    );
     osmBuilder.setDefaultWayPropertySetSource(new DefaultWayPropertySetSource());
-    HashMap<Class<?>, Object> extra = Maps.newHashMap();
-    osmBuilder.buildGraph(graph, extra); // TODO get rid of this "extra" thing
+    osmBuilder.buildGraph();
   }
 
   /**

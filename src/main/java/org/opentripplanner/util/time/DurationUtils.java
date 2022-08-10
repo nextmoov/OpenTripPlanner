@@ -8,13 +8,12 @@ import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.opentripplanner.model.calendar.ServiceDate;
 
 /**
  * This class extend the Java {@link LocalTime} and with the ability to span multiple days and be
  * negative.
  * <p>
- * The class is used to track time relative to a {@link ServiceDate}.
+ * The class is used to track time relative to a {@link java.time.LocalDate}.
  * <p>
  * The RelativeTime can also be used relative to some other time, in which case it is similar to the
  * JAva {@link Duration}.
@@ -107,8 +106,8 @@ public class DurationUtils {
       return Duration.parse(d);
     } catch (DateTimeParseException e) {
       throw new DateTimeParseException(
-        e.getMessage() + ": " + e.getParsedString(),
-        e.getParsedString(),
+        e.getMessage() + ": '" + duration + "'",
+        duration,
         e.getErrorIndex()
       );
     }

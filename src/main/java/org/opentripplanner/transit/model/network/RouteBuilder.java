@@ -3,6 +3,7 @@ package org.opentripplanner.transit.model.network;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.framework.AbstractEntityBuilder;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.organization.Agency;
@@ -29,11 +30,11 @@ public final class RouteBuilder extends AbstractEntityBuilder<Route, RouteBuilde
   private String textColor;
   private BikeAccess bikesAllowed = BikeAccess.UNKNOWN;
 
-  public RouteBuilder(FeedScopedId id) {
+  RouteBuilder(FeedScopedId id) {
     super(id);
   }
 
-  public RouteBuilder(Route original) {
+  RouteBuilder(Route original) {
     super(original);
     this.agency = original.getAgency();
     this.operator = original.getOperator();

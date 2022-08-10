@@ -1,10 +1,10 @@
 package org.opentripplanner.transit.model.site;
 
+import org.opentripplanner.transit.model.basic.I18NString;
 import org.opentripplanner.transit.model.basic.WgsCoordinate;
 import org.opentripplanner.transit.model.basic.WheelchairAccessibility;
 import org.opentripplanner.transit.model.framework.AbstractEntityBuilder;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
-import org.opentripplanner.util.I18NString;
 
 /**
  * Acts as the supertype for all entities, except stations, created from the GTFS stops table. Most
@@ -24,11 +24,11 @@ public abstract class StationElementBuilder<
   private StopLevel level;
   private Station parentStation;
 
-  public StationElementBuilder(FeedScopedId id) {
+  StationElementBuilder(FeedScopedId id) {
     super(id);
   }
 
-  public StationElementBuilder(E original) {
+  StationElementBuilder(E original) {
     super(original);
     this.name = original.getName();
     this.code = original.getCode();

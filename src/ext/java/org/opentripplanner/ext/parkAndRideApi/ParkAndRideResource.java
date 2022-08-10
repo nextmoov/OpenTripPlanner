@@ -1,6 +1,5 @@
 package org.opentripplanner.ext.parkAndRideApi;
 
-import java.util.List;
 import java.util.Optional;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -13,12 +12,11 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
-import org.opentripplanner.routing.impl.StreetVertexIndex;
+import org.opentripplanner.routing.graphfinder.DirectGraphFinder;
 import org.opentripplanner.routing.vehicle_parking.VehicleParking;
 import org.opentripplanner.routing.vehicle_parking.VehicleParkingService;
-import org.opentripplanner.routing.vertextype.TransitStopVertex;
-import org.opentripplanner.standalone.server.OTPServer;
-import org.opentripplanner.util.I18NString;
+import org.opentripplanner.standalone.api.OtpServerContext;
+import org.opentripplanner.transit.model.basic.I18NString;
 
 /**
  * Created by demory on 7/26/18.
@@ -28,18 +26,18 @@ import org.opentripplanner.util.I18NString;
 public class ParkAndRideResource {
 
   private final VehicleParkingService vehicleParkingService;
-  private final StreetVertexIndex streetIndex;
+  private final DirectGraphFinder graphFinder;
 
   public ParkAndRideResource(
-    @Context OTPServer otpServer,
+    @Context OtpServerContext serverContext,
     /**
      * @deprecated The support for multiple routers are removed from OTP2.
      * See https://github.com/opentripplanner/OpenTripPlanner/issues/2760
      */
     @Deprecated @PathParam("ignoreRouterId") String ignoreRouterId
   ) {
-    this.vehicleParkingService = otpServer.getRouter().graph.getVehicleParkingService();
-    this.streetIndex = otpServer.getRouter().graph.getStreetIndex();
+    this.vehicleParkingService = serverContext.graph().getVehicleParkingService();
+    this.graphFinder = new DirectGraphFinder(serverContext.graph());
   }
 
   /** Envelopes are in latitude, longitude format */
@@ -83,10 +81,7 @@ public class ParkAndRideResource {
     if (maxTransitDistance == null) {
       return true;
     } else {
-      List<TransitStopVertex> stops = streetIndex.getNearbyTransitStops(
-        new Coordinate(lot.getX(), lot.getY()),
-        maxTransitDistance
-      );
+      var stops = graphFinder.findClosestStops(lot.getY(), lot.getX(), maxTransitDistance);
       return !stops.isEmpty();
     }
   }

@@ -11,6 +11,8 @@ import graphql.schema.GraphQLNonNull;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLTypeReference;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
@@ -21,12 +23,12 @@ import org.opentripplanner.ext.transmodelapi.model.plan.JourneyWhiteListed;
 import org.opentripplanner.ext.transmodelapi.support.GqlUtil;
 import org.opentripplanner.model.TripTimeOnDate;
 import org.opentripplanner.routing.stoptimes.ArrivalDeparture;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.basic.WheelchairAccessibility;
-import org.opentripplanner.transit.model.network.TransitMode;
 import org.opentripplanner.transit.model.site.Station;
 import org.opentripplanner.transit.model.site.Stop;
 import org.opentripplanner.transit.model.site.StopLocation;
-import org.opentripplanner.util.I18NString;
 
 public class QuayType {
 
@@ -115,10 +117,7 @@ public class QuayType {
             if (station != null) {
               return new MonoOrMultiModalStation(
                 station,
-                GqlUtil
-                  .getTransitService(environment)
-                  .getMultiModalStationForStations()
-                  .get(station)
+                GqlUtil.getTransitService(environment).getMultiModalStationForStation(station)
               );
             } else {
               return null;
@@ -132,16 +131,12 @@ public class QuayType {
           .name("wheelchairAccessible")
           .type(EnumTypes.WHEELCHAIR_BOARDING)
           .description("Whether this quay is suitable for wheelchair boarding.")
-          .dataFetcher(environment -> {
-            var wheelChairBoarding =
-              (((StopLocation) environment.getSource()).getWheelchairAccessibility());
-
-            return Objects.requireNonNullElse(
-              wheelChairBoarding,
+          .dataFetcher(environment ->
+            Objects.requireNonNullElse(
+              (((StopLocation) environment.getSource()).getWheelchairAccessibility()),
               WheelchairAccessibility.NO_INFORMATION
             )
-              .gtfsCode;
-          })
+          )
           .build()
       )
       .field(
@@ -152,7 +147,7 @@ public class QuayType {
           .description(
             "Public code used to identify this quay within the stop place. For instance a platform code."
           )
-          .dataFetcher(environment -> (((StopLocation) environment.getSource()).getCode()))
+          .dataFetcher(environment -> (((StopLocation) environment.getSource()).getPlatformCode()))
           .build()
       )
       .field(
@@ -295,21 +290,20 @@ public class QuayType {
             Integer departuresPerLineAndDestinationDisplay = environment.getArgument(
               "numberOfDeparturesPerLineAndDestinationDisplay"
             );
-            int timeRange = environment.getArgument("timeRange");
+            Duration timeRange = Duration.ofSeconds(environment.getArgument("timeRange"));
             Stop stop = environment.getSource();
 
             JourneyWhiteListed whiteListed = new JourneyWhiteListed(environment);
             Collection<TransitMode> transitModes = environment.getArgument("whiteListedModes");
 
-            Long startTimeMs = environment.getArgument("startTime") == null
-              ? 0L
-              : environment.getArgument("startTime");
-            Long startTimeSeconds = startTimeMs / 1000;
+            Instant startTime = environment.containsArgument("startTime")
+              ? Instant.ofEpochMilli(environment.getArgument("startTime"))
+              : Instant.now();
 
             return StopPlaceType
               .getTripTimesForStop(
                 stop,
-                startTimeSeconds,
+                startTime,
                 timeRange,
                 arrivalDeparture,
                 includeCancelledTrips,
@@ -335,7 +329,7 @@ public class QuayType {
           .type(new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ptSituationElementType))))
           .dataFetcher(env -> {
             return GqlUtil
-              .getRoutingService(env)
+              .getTransitService(env)
               .getTransitAlertService()
               .getStopAlerts(((StopLocation) env.getSource()).getId());
           })

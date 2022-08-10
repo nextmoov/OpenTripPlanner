@@ -3,10 +3,10 @@ package org.opentripplanner.transit.model.site;
 import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import org.opentripplanner.transit.model.basic.I18NString;
 import org.opentripplanner.transit.model.basic.WgsCoordinate;
 import org.opentripplanner.transit.model.basic.WheelchairAccessibility;
-import org.opentripplanner.transit.model.framework.TransitEntity2;
-import org.opentripplanner.util.I18NString;
+import org.opentripplanner.transit.model.framework.TransitEntity;
 
 /**
  * Acts as the supertype for all entities, except stations, created from the GTFS stops table. Most
@@ -16,7 +16,7 @@ import org.opentripplanner.util.I18NString;
 public abstract class StationElement<
   E extends StationElement<E, B>, B extends StationElementBuilder<E, B>
 >
-  extends TransitEntity2<E, B> {
+  extends TransitEntity<E, B> {
 
   private final I18NString name;
 

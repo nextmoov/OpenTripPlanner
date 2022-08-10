@@ -14,13 +14,13 @@ import javax.annotation.Nullable;
 import javax.xml.bind.JAXBElement;
 import org.opentripplanner.graph_builder.DataImportIssueStore;
 import org.opentripplanner.model.BookingInfo;
-import org.opentripplanner.model.FlexLocationGroup;
-import org.opentripplanner.model.FlexStopLocation;
 import org.opentripplanner.model.StopTime;
 import org.opentripplanner.model.impl.EntityById;
 import org.opentripplanner.netex.index.api.ReadOnlyHierarchicalMap;
 import org.opentripplanner.netex.index.api.ReadOnlyHierarchicalMapById;
 import org.opentripplanner.netex.mapping.support.FeedScopedIdFactory;
+import org.opentripplanner.transit.model.site.FlexLocationGroup;
+import org.opentripplanner.transit.model.site.FlexStopLocation;
 import org.opentripplanner.transit.model.site.Stop;
 import org.opentripplanner.transit.model.site.StopLocation;
 import org.opentripplanner.transit.model.timetable.Trip;
@@ -131,8 +131,8 @@ class StopTimesMapper {
       if (stop == null) {
         issueStore.add(
           "JourneyPatternStopNotFound",
-          "Stop with id {} not found for StopPoint {} in JourneyPattern {}. " +
-          "Trip {} will not be mapped.",
+          "Stop with id %s not found for StopPoint %s in JourneyPattern %s. " +
+          "Trip %s will not be mapped.",
           stopPoint != null && stopPoint.getScheduledStopPointRef() != null
             ? stopPoint.getScheduledStopPointRef().getValue().getRef()
             : "null",

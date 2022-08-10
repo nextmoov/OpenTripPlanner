@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.google.transit.realtime.GtfsRealtime.FeedEntity;
 import com.google.transit.realtime.GtfsRealtime.FeedMessage;
 import com.google.transit.realtime.GtfsRealtime.TripUpdate;
-import io.micrometer.core.instrument.Metrics;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -23,16 +22,17 @@ import org.opentripplanner.graph_builder.module.GtfsModule;
 import org.opentripplanner.model.calendar.ServiceDateInterval;
 import org.opentripplanner.model.plan.Itinerary;
 import org.opentripplanner.model.plan.Leg;
-import org.opentripplanner.routing.algorithm.RoutingWorker;
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.api.response.RoutingResponse;
 import org.opentripplanner.routing.core.TraverseMode;
 import org.opentripplanner.routing.core.TraverseModeSet;
 import org.opentripplanner.routing.graph.Graph;
 import org.opentripplanner.routing.impl.TransitAlertServiceImpl;
-import org.opentripplanner.standalone.config.RouterConfig;
-import org.opentripplanner.standalone.server.Router;
+import org.opentripplanner.standalone.api.OtpServerContext;
+import org.opentripplanner.transit.model.framework.Deduplicator;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
+import org.opentripplanner.transit.service.StopModel;
+import org.opentripplanner.transit.service.TransitModel;
 import org.opentripplanner.updater.alerts.AlertsUpdateHandler;
 import org.opentripplanner.updater.stoptime.TimetableSnapshotSource;
 
@@ -40,10 +40,12 @@ import org.opentripplanner.updater.stoptime.TimetableSnapshotSource;
 public abstract class GtfsTest {
 
   public Graph graph;
+  public TransitModel transitModel;
+
   AlertsUpdateHandler alertsUpdateHandler;
   TimetableSnapshotSource timetableSnapshotSource;
   TransitAlertServiceImpl alertPatchServiceImpl;
-  public Router router;
+  public OtpServerContext serverContext;
   public GtfsFeedId feedId;
 
   public abstract String getFeedName();
@@ -95,8 +97,7 @@ public abstract class GtfsTest {
     routingRequest.setWalkBoardCost(30);
     routingRequest.transferSlack = 0;
 
-    RoutingResponse res = new RoutingWorker(router, routingRequest, graph.getTimeZone().toZoneId())
-      .route();
+    RoutingResponse res = serverContext.routingService().route(routingRequest);
     List<Itinerary> itineraries = res.getTripPlan().itineraries;
     // Stored in instance field for use in individual tests
     Itinerary itinerary = itineraries.get(0);
@@ -134,32 +135,35 @@ public abstract class GtfsTest {
   }
 
   @BeforeEach
-  protected void setUp() {
+  protected void setUp() throws Exception {
     File gtfs = new File("src/test/resources/" + getFeedName());
     File gtfsRealTime = new File("src/test/resources/" + getFeedName() + ".pb");
     GtfsBundle gtfsBundle = new GtfsBundle(gtfs);
     feedId = new GtfsFeedId.Builder().id("FEED").build();
     gtfsBundle.setFeedId(feedId);
     List<GtfsBundle> gtfsBundleList = Collections.singletonList(gtfsBundle);
+
+    alertsUpdateHandler = new AlertsUpdateHandler();
+    var deduplicator = new Deduplicator();
+    var stopModel = new StopModel();
+    graph = new Graph(stopModel, deduplicator);
+    transitModel = new TransitModel(stopModel, deduplicator);
+
     GtfsModule gtfsGraphBuilderImpl = new GtfsModule(
       gtfsBundleList,
+      transitModel,
+      graph,
       ServiceDateInterval.unbounded()
     );
 
-    alertsUpdateHandler = new AlertsUpdateHandler();
-    graph = new Graph();
-
-    gtfsGraphBuilderImpl.buildGraph(graph, null);
-    // Set the agency ID to be used for tests to the first one in the feed.
-    String agencyId = graph.getAgencies().iterator().next().getId().getId();
-    System.out.printf("Set the agency ID for this test to %s\n", agencyId);
+    gtfsGraphBuilderImpl.buildGraph();
+    transitModel.index();
     graph.index();
-    router = new Router(graph, RouterConfig.DEFAULT, Metrics.globalRegistry);
-    router.startup();
-    timetableSnapshotSource = TimetableSnapshotSource.ofGraph(graph);
+    serverContext = TestServerContext.createServerContext(graph, transitModel);
+    timetableSnapshotSource = TimetableSnapshotSource.ofTransitModel(transitModel);
     timetableSnapshotSource.purgeExpiredData = false;
-    graph.getOrSetupTimetableSnapshotProvider(g -> timetableSnapshotSource);
-    alertPatchServiceImpl = new TransitAlertServiceImpl(graph);
+    transitModel.getOrSetupTimetableSnapshotProvider(g -> timetableSnapshotSource);
+    alertPatchServiceImpl = new TransitAlertServiceImpl(transitModel);
     alertsUpdateHandler.setTransitAlertService(alertPatchServiceImpl);
     alertsUpdateHandler.setFeedId(feedId.getId());
 

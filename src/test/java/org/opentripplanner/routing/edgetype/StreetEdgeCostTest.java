@@ -23,16 +23,16 @@ class StreetEdgeCostTest extends GraphRoutingTest {
   Graph graph;
 
   public StreetEdgeCostTest() {
-    graph =
-      graphOf(
-        new Builder() {
-          @Override
-          public void build() {
-            V1 = intersection("V1", 0.0, 0.0);
-            V2 = intersection("V2", 2.0, 0.0);
-          }
+    var otpModel = modelOf(
+      new Builder() {
+        @Override
+        public void build() {
+          V1 = intersection("V1", 0.0, 0.0);
+          V2 = intersection("V2", 2.0, 0.0);
         }
-      );
+      }
+    );
+    graph = otpModel.graph();
   }
 
   static Stream<Arguments> walkReluctanceCases = Stream.of(
@@ -129,6 +129,40 @@ class StreetEdgeCostTest extends GraphRoutingTest {
     edge.setStairs(false);
     var notStairsResult = traverse(edge, req);
     assertEquals(15, (long) notStairsResult.weight);
+  }
+
+  static Stream<Arguments> walkSafetyCases = Stream.of(
+    Arguments.of(0, 15),
+    Arguments.of(0.5, 22),
+    Arguments.of(1, 30)
+  );
+
+  @ParameterizedTest(name = "walk safety factor of of {0} should lead to traversal costs of {1}")
+  @VariableSource("walkSafetyCases")
+  public void walkSafetyFactor(double walkSafetyFactor, long expectedCost) {
+    double length = 10;
+    var edge = new StreetEdge(
+      V1,
+      V2,
+      null,
+      "test edge",
+      length,
+      StreetTraversalPermission.ALL,
+      false
+    );
+    edge.setWalkSafetyFactor(2);
+
+    var req = new RoutingRequest();
+    req.walkSafetyFactor = walkSafetyFactor;
+
+    var result = traverse(edge, req);
+    assertEquals(expectedCost, (long) result.weight);
+
+    assertEquals(8, result.getElapsedTimeSeconds());
+
+    edge.setWalkSafetyFactor(1);
+    var defaultSafetyResult = traverse(edge, req);
+    assertEquals(15, (long) defaultSafetyResult.weight);
   }
 
   private State traverse(StreetEdge edge, RoutingRequest req) {

@@ -1,13 +1,13 @@
 package org.opentripplanner.graph_builder.module;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.locationtech.jts.geom.Coordinate;
@@ -15,8 +15,6 @@ import org.opentripplanner.common.MinMap;
 import org.opentripplanner.ext.flex.trip.FlexTrip;
 import org.opentripplanner.ext.vehicletostopheuristics.BikeToStopSkipEdgeStrategy;
 import org.opentripplanner.ext.vehicletostopheuristics.VehicleToStopSkipEdgeStrategy;
-import org.opentripplanner.model.FlexStopLocation;
-import org.opentripplanner.model.TripPattern;
 import org.opentripplanner.routing.algorithm.astar.AStarBuilder;
 import org.opentripplanner.routing.algorithm.astar.strategies.ComposingSkipEdgeStrategy;
 import org.opentripplanner.routing.algorithm.astar.strategies.DurationSkipEdgeStrategy;
@@ -37,8 +35,11 @@ import org.opentripplanner.routing.spt.DominanceFunction;
 import org.opentripplanner.routing.spt.ShortestPathTree;
 import org.opentripplanner.routing.vertextype.StreetVertex;
 import org.opentripplanner.routing.vertextype.TransitStopVertex;
+import org.opentripplanner.transit.model.network.TripPattern;
+import org.opentripplanner.transit.model.site.FlexStopLocation;
 import org.opentripplanner.transit.model.site.Stop;
 import org.opentripplanner.transit.model.site.StopLocation;
+import org.opentripplanner.transit.service.TransitService;
 import org.opentripplanner.util.OTPFeature;
 
 /**
@@ -54,7 +55,11 @@ import org.opentripplanner.util.OTPFeature;
 public class NearbyStopFinder {
 
   public final boolean useStreets;
+
   private final Graph graph;
+
+  private final TransitService transitService;
+
   private final Duration durationLimit;
 
   private DirectGraphFinder directGraphFinder;
@@ -64,8 +69,8 @@ public class NearbyStopFinder {
    * via the street network or straight line distance based on the presence of OSM street data in
    * the graph.
    */
-  public NearbyStopFinder(Graph graph, Duration durationLimit) {
-    this(graph, durationLimit, graph.hasStreets);
+  public NearbyStopFinder(Graph graph, TransitService transitService, Duration durationLimit) {
+    this(graph, transitService, durationLimit, graph.hasStreets);
   }
 
   /**
@@ -74,8 +79,14 @@ public class NearbyStopFinder {
    * @param useStreets if true, search via the street network instead of using straight-line
    *                   distance.
    */
-  public NearbyStopFinder(Graph graph, Duration durationLimit, boolean useStreets) {
+  public NearbyStopFinder(
+    Graph graph,
+    TransitService transitService,
+    Duration durationLimit,
+    boolean useStreets
+  ) {
     this.graph = graph;
+    this.transitService = transitService;
     this.useStreets = useStreets;
     this.durationLimit = durationLimit;
 
@@ -114,19 +125,19 @@ public class NearbyStopFinder {
 
       if (ts1 instanceof Stop) {
         /* Consider this destination stop as a candidate for every trip pattern passing through it. */
-        for (TripPattern pattern : graph.index.getPatternsForStop(ts1)) {
+        for (TripPattern pattern : transitService.getPatternsForStop(ts1)) {
           closestStopForPattern.putMin(pattern, nearbyStop);
         }
       }
       if (OTPFeature.FlexRouting.isOn()) {
-        for (FlexTrip trip : graph.index.getFlexIndex().flexTripsByStop.get(ts1)) {
+        for (FlexTrip trip : transitService.getFlexIndex().getFlexTripsByStop(ts1)) {
           closestStopForFlexTrip.putMin(trip, nearbyStop);
         }
       }
     }
 
     /* Make a transfer from the origin stop to each destination stop that was the closest stop on any pattern. */
-    Set<NearbyStop> uniqueStops = Sets.newHashSet();
+    Set<NearbyStop> uniqueStops = new HashSet<>();
     uniqueStops.addAll(closestStopForFlexTrip.values());
     uniqueStops.addAll(closestStopForPattern.values());
     return uniqueStops;
@@ -166,7 +177,7 @@ public class NearbyStopFinder {
     boolean reverseDirection,
     RoutingRequest routingRequest
   ) {
-    List<NearbyStop> stopsFound = Lists.newArrayList();
+    List<NearbyStop> stopsFound = new ArrayList<>();
 
     routingRequest.setArriveBy(reverseDirection);
 
@@ -179,10 +190,10 @@ public class NearbyStopFinder {
 
     /* Add the origin vertices if they are stops */
     for (Vertex vertex : originVertices) {
-      if (vertex instanceof TransitStopVertex) {
+      if (vertex instanceof TransitStopVertex tsv) {
         stopsFound.add(
           new NearbyStop(
-            (TransitStopVertex) vertex,
+            tsv.getStop(),
             0,
             Collections.emptyList(),
             new State(vertex, routingRequest, routingContext)
@@ -274,13 +285,13 @@ public class NearbyStopFinder {
       OTPFeature.VehicleToStopHeuristics.isOn() &&
       VehicleToStopSkipEdgeStrategy.applicableModes.contains(routingRequest.modes.accessMode)
     ) {
-      var strategy = new VehicleToStopSkipEdgeStrategy(graph.index::getRoutesForStop);
+      var strategy = new VehicleToStopSkipEdgeStrategy(transitService::getRoutesForStop);
       return new ComposingSkipEdgeStrategy(strategy, durationSkipEdgeStrategy);
     } else if (
       OTPFeature.VehicleToStopHeuristics.isOn() &&
       routingRequest.modes.accessMode == StreetMode.BIKE
     ) {
-      var strategy = new BikeToStopSkipEdgeStrategy(graph.index::getTripsForStop);
+      var strategy = new BikeToStopSkipEdgeStrategy(transitService::getTripsForStop);
       return new ComposingSkipEdgeStrategy(strategy, durationSkipEdgeStrategy);
     } else {
       return durationSkipEdgeStrategy;

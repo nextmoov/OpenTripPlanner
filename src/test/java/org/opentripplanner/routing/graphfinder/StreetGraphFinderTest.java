@@ -6,19 +6,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.opentripplanner.model.StopPattern;
-import org.opentripplanner.model.TripPattern;
-import org.opentripplanner.routing.RoutingService;
 import org.opentripplanner.routing.algorithm.GraphRoutingTest;
 import org.opentripplanner.routing.edgetype.StreetTraversalPermission;
-import org.opentripplanner.routing.graph.GraphIndex;
 import org.opentripplanner.routing.vehicle_parking.VehicleParking;
 import org.opentripplanner.routing.vertextype.IntersectionVertex;
 import org.opentripplanner.routing.vertextype.TransitStopVertex;
 import org.opentripplanner.routing.vertextype.VehicleRentalPlaceVertex;
 import org.opentripplanner.transit.model._data.TransitModelForTest;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.network.Route;
-import org.opentripplanner.transit.model.network.TransitMode;
+import org.opentripplanner.transit.model.network.StopPattern;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.service.DefaultTransitService;
 import org.opentripplanner.transit.service.TransitService;
 
@@ -27,7 +25,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
   private TransitStopVertex S1, S2, S3;
   private IntersectionVertex A, B, C, D;
   private VehicleRentalPlaceVertex BR1, BR2;
-  private RoutingService routingService;
 
   private TransitService transitService;
   private StreetGraphFinder graphFinder;
@@ -37,7 +34,7 @@ class StreetGraphFinderTest extends GraphRoutingTest {
 
   @BeforeEach
   protected void setUp() throws Exception {
-    var graph = graphOf(
+    var otpModel = modelOf(
       new Builder() {
         @Override
         public void build() {
@@ -100,35 +97,32 @@ class StreetGraphFinderTest extends GraphRoutingTest {
 
           tripPattern(
             TP1 =
-              new TripPattern(
-                TransitModelForTest.id("TP1"),
-                R1,
-                new StopPattern(List.of(st(S1), st(S2)))
-              )
+              TripPattern
+                .of(TransitModelForTest.id("TP1"))
+                .withRoute(R1)
+                .withStopPattern(new StopPattern(List.of(st(S1), st(S2))))
+                .build()
           );
           tripPattern(
             TP2 =
-              new TripPattern(
-                TransitModelForTest.id("TP2"),
-                R2,
-                new StopPattern(List.of(st(S1), st(S3)))
-              )
+              TripPattern
+                .of(TransitModelForTest.id("TP2"))
+                .withRoute(R2)
+                .withStopPattern(new StopPattern(List.of(st(S1), st(S3))))
+                .build()
           );
         }
       }
     );
 
-    graph.index = new GraphIndex(graph);
-
-    routingService = new RoutingService(graph);
-    transitService = new DefaultTransitService(graph);
-    graphFinder = new StreetGraphFinder(graph);
+    transitService = new DefaultTransitService(otpModel.transitModel());
+    graphFinder = new StreetGraphFinder(otpModel.graph());
   }
 
   @Test
   void findClosestStops() {
-    var ns1 = new NearbyStop(S1.getStop(), 0, null, null, null);
-    var ns2 = new NearbyStop(S2.getStop(), 100, null, null, null);
+    var ns1 = new NearbyStop(S1.getStop(), 0, null, null);
+    var ns2 = new NearbyStop(S2.getStop(), 100, null, null);
 
     assertEquals(List.of(ns1), simplify(graphFinder.findClosestStops(47.500, 19.000, 10)));
 
@@ -159,7 +153,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -176,7 +169,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -193,7 +185,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -217,7 +208,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -234,7 +224,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -259,7 +248,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -276,7 +264,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         List.of(S2.getStop().getId()),
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -301,7 +288,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -318,7 +304,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         List.of(S2.getStop().getId()),
         List.of(R1.getId()),
         null,
-        routingService,
         transitService
       )
     );
@@ -344,7 +329,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -361,7 +345,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         List.of(R2.getId()),
         null,
-        routingService,
         transitService
       )
     );
@@ -384,7 +367,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -401,7 +383,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         List.of("BR2"),
-        routingService,
         transitService
       )
     );
@@ -423,7 +404,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -445,7 +425,6 @@ class StreetGraphFinderTest extends GraphRoutingTest {
         null,
         null,
         null,
-        routingService,
         transitService
       )
     );
@@ -454,7 +433,7 @@ class StreetGraphFinderTest extends GraphRoutingTest {
   private List<NearbyStop> simplify(List<NearbyStop> closestStops) {
     return closestStops
       .stream()
-      .map(ns -> new NearbyStop(ns.stop, ns.distance, null, null, null))
+      .map(ns -> new NearbyStop(ns.stop, ns.distance, null, null))
       .collect(Collectors.toList());
   }
 }

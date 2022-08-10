@@ -16,7 +16,7 @@ public class State implements Cloneable {
 
   /* Data which is likely to change at most traversals */
 
-  // the current time at this state, in milliseconds
+  // the current time at this state, in seconds since UNIX epoch
   protected long time;
 
   // accumulated weight up to this state
@@ -79,7 +79,7 @@ public class State implements Cloneable {
     this.stateData.rctx = routingContext;
     this.stateData.startTime = startTime;
     this.walkDistance = 0;
-    this.time = startTime.toEpochMilli();
+    this.time = startTime.getEpochSecond();
   }
 
   /**
@@ -118,7 +118,7 @@ public class State implements Cloneable {
 
   /** Returns time in seconds since epoch */
   public long getTimeSeconds() {
-    return time / 1000;
+    return time;
   }
 
   /** returns the length of the trip in seconds up to this state */
@@ -281,7 +281,7 @@ public class State implements Cloneable {
   }
 
   public Instant getTime() {
-    return Instant.ofEpochMilli(time);
+    return Instant.ofEpochSecond(time);
   }
 
   public String getVehicleRentalNetwork() {
@@ -343,7 +343,7 @@ public class State implements Cloneable {
         }
       }
       if (orig.isVehicleParked() != orig.getBackState().isVehicleParked()) {
-        editor.setVehicleParked(true, orig.getNonTransitMode());
+        editor.setVehicleParked(true, orig.getBackState().getNonTransitMode());
       }
 
       ret = editor.makeState();
@@ -375,7 +375,7 @@ public class State implements Cloneable {
   public String toString() {
     return ToStringBuilder
       .of(State.class)
-      .addTime("time", getTime())
+      .addDateTime("time", getTime())
       .addNum("weight", weight)
       .addObj("vertex", vertex)
       .addBoolIfTrue("VEHICLE_RENT", isRentingVehicle())

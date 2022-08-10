@@ -5,20 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.opentripplanner.gtfs.GtfsContextBuilder.contextBuilder;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.opentripplanner.ConstantsForTests;
-import org.opentripplanner.model.FareAttribute;
-import org.opentripplanner.model.FareRule;
+import org.opentripplanner.ext.fares.model.FareAttribute;
 import org.opentripplanner.model.FeedInfo;
 import org.opentripplanner.model.Frequency;
 import org.opentripplanner.model.ShapePoint;
 import org.opentripplanner.model.calendar.ServiceCalendar;
 import org.opentripplanner.model.calendar.ServiceCalendarDate;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.transit.model._data.TransitModelForTest;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.network.Route;
@@ -96,8 +95,6 @@ public class OtpTransitServiceBuilderTest {
 
     // Supplement test data with at least one entity in all collections
     builder.getCalendarDates().add(createAServiceCalendarDateExclution(SERVICE_WEEKDAYS_ID));
-    builder.getFareAttributes().add(createFareAttribute());
-    builder.getFareRules().add(new FareRule());
     builder.getFeedInfos().add(FeedInfo.dummyForTest(FEED_ID));
 
     return builder;
@@ -107,12 +104,8 @@ public class OtpTransitServiceBuilderTest {
     return first(builder.getAgenciesById().values());
   }
 
-  private static FareAttribute createFareAttribute() {
-    return new FareAttribute(TransitModelForTest.id("FA"));
-  }
-
   private static ServiceCalendarDate createAServiceCalendarDateExclution(FeedScopedId serviceId) {
-    return new ServiceCalendarDate(serviceId, new ServiceDate(2017, 8, 31), 2);
+    return new ServiceCalendarDate(serviceId, LocalDate.of(2017, 8, 31), 2);
   }
 
   private static <T> T first(Collection<? extends T> c) {

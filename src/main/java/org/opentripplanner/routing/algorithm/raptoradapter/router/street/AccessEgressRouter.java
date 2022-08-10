@@ -9,6 +9,7 @@ import org.opentripplanner.routing.api.request.StreetMode;
 import org.opentripplanner.routing.core.RoutingContext;
 import org.opentripplanner.routing.graph.Vertex;
 import org.opentripplanner.routing.graphfinder.NearbyStop;
+import org.opentripplanner.transit.service.TransitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +30,7 @@ public class AccessEgressRouter {
    */
   public static Collection<NearbyStop> streetSearch(
     RoutingContext rctx,
+    TransitService transitService,
     StreetMode streetMode,
     boolean fromTarget
   ) {
@@ -40,6 +42,7 @@ public class AccessEgressRouter {
 
     NearbyStopFinder nearbyStopFinder = new NearbyStopFinder(
       rctx.graph,
+      transitService,
       rr.getMaxAccessEgressDuration(streetMode),
       true
     );

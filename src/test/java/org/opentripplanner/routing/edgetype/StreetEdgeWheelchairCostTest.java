@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.impl.PackedCoordinateSequence;
+import org.opentripplanner.TestOtpModel;
 import org.opentripplanner.routing.algorithm.GraphRoutingTest;
 import org.opentripplanner.routing.api.request.RoutingRequest;
 import org.opentripplanner.routing.api.request.WheelchairAccessibilityRequest;
@@ -26,16 +27,16 @@ class StreetEdgeWheelchairCostTest extends GraphRoutingTest {
   Graph graph;
 
   public StreetEdgeWheelchairCostTest() {
-    graph =
-      graphOf(
-        new Builder() {
-          @Override
-          public void build() {
-            V1 = intersection("V1", 0.0, 0.0);
-            V2 = intersection("V2", 2.0, 0.0);
-          }
+    TestOtpModel model = modelOf(
+      new Builder() {
+        @Override
+        public void build() {
+          V1 = intersection("V1", 0.0, 0.0);
+          V2 = intersection("V2", 2.0, 0.0);
         }
-      );
+      }
+    );
+    graph = model.graph();
   }
 
   static Stream<Arguments> slopeCases = Stream.of(

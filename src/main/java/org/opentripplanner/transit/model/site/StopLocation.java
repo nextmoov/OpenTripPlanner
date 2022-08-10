@@ -1,18 +1,18 @@
 package org.opentripplanner.transit.model.site;
 
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.List;
-import java.util.TimeZone;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.locationtech.jts.geom.Geometry;
+import org.opentripplanner.transit.model.basic.I18NString;
+import org.opentripplanner.transit.model.basic.SubMode;
+import org.opentripplanner.transit.model.basic.TransitMode;
 import org.opentripplanner.transit.model.basic.WgsCoordinate;
 import org.opentripplanner.transit.model.basic.WheelchairAccessibility;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.framework.LogInfo;
-import org.opentripplanner.transit.model.network.SubMode;
-import org.opentripplanner.transit.model.network.TransitMode;
-import org.opentripplanner.util.I18NString;
 import org.opentripplanner.util.lang.ObjectUtils;
 
 /**
@@ -110,7 +110,7 @@ public interface StopLocation extends LogInfo {
   Geometry getGeometry();
 
   @Nullable
-  default TimeZone getTimeZone() {
+  default ZoneId getTimeZone() {
     return null;
   }
 
@@ -126,5 +126,15 @@ public interface StopLocation extends LogInfo {
   @Override
   default String logName() {
     return ObjectUtils.ifNotNull(getName(), Object::toString, null);
+  }
+
+  /**
+   * Get the parent station id if such exists. Otherwise, return the stop id.
+   */
+  default FeedScopedId getStationOrStopId() {
+    if (this instanceof StationElement<?, ?> stationElement && stationElement.isPartOfStation()) {
+      return stationElement.getParentStation().getId();
+    }
+    return getId();
   }
 }

@@ -3,7 +3,6 @@ package org.opentripplanner.ext.transferanalyzer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -11,14 +10,15 @@ import org.locationtech.jts.geom.Coordinate;
 import org.opentripplanner.ext.transferanalyzer.annotations.TransferCouldNotBeRouted;
 import org.opentripplanner.ext.transferanalyzer.annotations.TransferRoutingDistanceTooLong;
 import org.opentripplanner.graph_builder.DataImportIssueStore;
-import org.opentripplanner.graph_builder.services.GraphBuilderModule;
+import org.opentripplanner.graph_builder.model.GraphBuilderModule;
 import org.opentripplanner.routing.graph.Graph;
-import org.opentripplanner.routing.graph.GraphIndex;
 import org.opentripplanner.routing.graphfinder.DirectGraphFinder;
 import org.opentripplanner.routing.graphfinder.NearbyStop;
 import org.opentripplanner.routing.graphfinder.StreetGraphFinder;
 import org.opentripplanner.routing.vertextype.TransitStopVertex;
 import org.opentripplanner.transit.model.site.Stop;
+import org.opentripplanner.transit.service.TransitModel;
+import org.opentripplanner.transit.service.TransitModelIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,20 +40,28 @@ public class DirectTransferAnalyzer implements GraphBuilderModule {
 
   private static final Logger LOG = LoggerFactory.getLogger(DirectTransferAnalyzer.class);
 
+  private final Graph graph;
+  private final TransitModel transitModel;
+  private final DataImportIssueStore issueStore;
   private final double radiusMeters;
 
-  public DirectTransferAnalyzer(double radiusMeters) {
+  public DirectTransferAnalyzer(
+    Graph graph,
+    TransitModel transitModel,
+    DataImportIssueStore issueStore,
+    double radiusMeters
+  ) {
+    this.graph = graph;
+    this.transitModel = transitModel;
+    this.issueStore = issueStore;
     this.radiusMeters = radiusMeters;
   }
 
   @Override
-  public void buildGraph(
-    Graph graph,
-    HashMap<Class<?>, Object> extra,
-    DataImportIssueStore issueStore
-  ) {
-    /* Initialize graph index which is needed by the nearby stop finder. */
-    graph.index = new GraphIndex(graph);
+  public void buildGraph() {
+    /* Initialize transit index which is needed by the nearby stop finder. */
+    transitModel.setTransitModelIndex(new TransitModelIndex(transitModel));
+    transitModel.getStopModel().index();
 
     LOG.info("Analyzing transfers (this can be time consuming)...");
 

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.common.collect.Multimap;
 import java.io.Serializable;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -17,23 +18,22 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.opentripplanner.ConstantsForTests;
 import org.opentripplanner.graph_builder.DataImportIssueStore;
-import org.opentripplanner.model.MultiModalStation;
-import org.opentripplanner.model.Notice;
 import org.opentripplanner.model.OtpTransitService;
-import org.opentripplanner.model.StopTimeKey;
-import org.opentripplanner.model.TripPattern;
 import org.opentripplanner.model.calendar.CalendarServiceData;
-import org.opentripplanner.model.calendar.ServiceDate;
 import org.opentripplanner.model.impl.OtpTransitServiceBuilder;
-import org.opentripplanner.routing.trippattern.Deduplicator;
+import org.opentripplanner.transit.model.basic.Notice;
 import org.opentripplanner.transit.model.basic.WheelchairAccessibility;
+import org.opentripplanner.transit.model.framework.Deduplicator;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.framework.TransitEntity;
 import org.opentripplanner.transit.model.network.BikeAccess;
+import org.opentripplanner.transit.model.network.TripPattern;
 import org.opentripplanner.transit.model.organization.Agency;
 import org.opentripplanner.transit.model.organization.Operator;
+import org.opentripplanner.transit.model.site.MultiModalStation;
 import org.opentripplanner.transit.model.site.Station;
 import org.opentripplanner.transit.model.site.Stop;
+import org.opentripplanner.transit.model.timetable.StopTimeKey;
 import org.opentripplanner.transit.model.timetable.Trip;
 
 /**
@@ -60,7 +60,7 @@ public class NetexBundleSmokeTest {
     // When
     OtpTransitServiceBuilder transitBuilder = netexBundle.loadBundle(
       new Deduplicator(),
-      new DataImportIssueStore(false)
+      DataImportIssueStore.noopIssueStore()
     );
 
     // Then - smoke test model
@@ -87,7 +87,7 @@ public class NetexBundleSmokeTest {
   }
 
   private static StopTimeKey stId(String id, int stopSequenceNr) {
-    return new StopTimeKey(fId(id), stopSequenceNr);
+    return StopTimeKey.of(fId(id), stopSequenceNr).build();
   }
 
   private static FeedScopedId fId(String id) {
@@ -100,7 +100,7 @@ public class NetexBundleSmokeTest {
     assertEquals("RUT:Authority:RUT", a.getId().getId());
     assertEquals("RUT", a.getName());
     assertNull(a.getUrl());
-    assertEquals("Europe/Oslo", a.getTimezone());
+    assertEquals("Europe/Oslo", a.getTimezone().getId());
     assertNull(a.getLang());
     assertNull(a.getPhone());
     assertNull(a.getFareUrl());
@@ -135,7 +135,7 @@ public class NetexBundleSmokeTest {
     assertEquals(59.909803, quay.getLat(), 0.000001);
     assertEquals(10.748062, quay.getLon(), 0.000001);
     assertEquals("RB:NSR:StopPlace:3995", quay.getParentStation().getId().toString());
-    assertEquals("L", quay.getCode());
+    assertEquals("L", quay.getPlatformCode());
     assertEquals(16, stops.size());
   }
 
@@ -166,8 +166,6 @@ public class NetexBundleSmokeTest {
       p.scheduledTripsAsStream().toList().toString()
     );
 
-    // TODO OTP2 - Why?
-    assertNull(p.getServices());
     assertEquals(4, patterns.size());
   }
 
@@ -223,8 +221,8 @@ public class NetexBundleSmokeTest {
     );
     Notice n = list.get(0);
     assertTrue(n.getId().toString().startsWith("RB:RUT:Notice:"));
-    assertEquals(code, n.getPublicCode());
-    assertEquals(text, n.getText());
+    assertEquals(code, n.publicCode());
+    assertEquals(text, n.text());
     assertEquals(1, list.size());
   }
 
@@ -237,19 +235,13 @@ public class NetexBundleSmokeTest {
   }
 
   private void assetServiceCalendar(CalendarServiceData cal) {
-    assertEquals("[RB:RUT:Authority:RUT]", cal.getAgencyIds().toString());
-    assertEquals(
-      "Europe/Oslo",
-      cal.getTimeZoneForAgencyId(new FeedScopedId("RB", "RUT:Authority:RUT")).toZoneId().toString()
-    );
-
     ArrayList<FeedScopedId> sIds = new ArrayList<>(cal.getServiceIds());
     assertEquals(2, sIds.size());
     FeedScopedId serviceId1 = sIds.get(0);
     FeedScopedId serviceId2 = sIds.get(1);
 
-    List<ServiceDate> dates1 = cal.getServiceDatesForServiceId(serviceId1);
-    List<ServiceDate> dates2 = cal.getServiceDatesForServiceId(serviceId2);
+    List<LocalDate> dates1 = cal.getServiceDatesForServiceId(serviceId1);
+    List<LocalDate> dates2 = cal.getServiceDatesForServiceId(serviceId2);
 
     if (dates1.size() > dates2.size()) {
       var datesTemp = dates1;
@@ -269,6 +261,5 @@ public class NetexBundleSmokeTest {
       dates2.toString()
     );
     assertEquals(2, cal.getServiceIds().size());
-    assertEquals(1, cal.getAgencyIds().size());
   }
 }

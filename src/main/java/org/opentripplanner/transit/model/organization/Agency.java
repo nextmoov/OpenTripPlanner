@@ -3,20 +3,21 @@ package org.opentripplanner.transit.model.organization;
 
 import static org.opentripplanner.util.lang.AssertUtils.assertHasValue;
 
+import java.time.ZoneId;
 import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.opentripplanner.transit.model.framework.FeedScopedId;
 import org.opentripplanner.transit.model.framework.LogInfo;
-import org.opentripplanner.transit.model.framework.TransitEntity2;
+import org.opentripplanner.transit.model.framework.TransitEntity;
 
 /**
  * This class is tha same as a GTFS Agency and Netex Authority.
  */
-public final class Agency extends TransitEntity2<Agency, AgencyBuilder> implements LogInfo {
+public final class Agency extends TransitEntity<Agency, AgencyBuilder> implements LogInfo {
 
   private final String name;
-  private final String timezone;
+  private final ZoneId timezone;
   private final String url;
   private final String lang;
   private final String phone;
@@ -27,7 +28,7 @@ public final class Agency extends TransitEntity2<Agency, AgencyBuilder> implemen
     super(builder.getId());
     // Required fields
     this.name = assertHasValue(builder.getName());
-    this.timezone = assertHasValue(builder.getTimezone());
+    this.timezone = ZoneId.of(assertHasValue(builder.getTimezone()));
 
     // Optional fields
     this.url = builder.getUrl();
@@ -47,7 +48,7 @@ public final class Agency extends TransitEntity2<Agency, AgencyBuilder> implemen
   }
 
   @Nonnull
-  public String getTimezone() {
+  public ZoneId getTimezone() {
     return timezone;
   }
 

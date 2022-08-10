@@ -1,6 +1,6 @@
 package org.opentripplanner.routing.algorithm.raptoradapter.transit.request;
 
-import static org.opentripplanner.routing.algorithm.raptoradapter.transit.mappers.DateMapper.secondsSinceStartOfTime;
+import static org.opentripplanner.util.time.ServiceDateUtils.secondsSinceStartOfTime;
 
 import gnu.trove.list.array.TIntArrayList;
 import java.time.LocalDate;
@@ -173,10 +173,10 @@ class RaptorRoutingRequestTransitDataCreator {
       );
     }
 
-    if (LOG.isInfoEnabled()) {
+    if (LOG.isDebugEnabled()) {
       String time = DurationUtils.msToSecondsStr(System.currentTimeMillis() - start);
       long count = tripPatternForDates.size();
-      LOG.info("Prepare Transit model performed in {}, count: {}.", time, count);
+      LOG.debug("Prepare Transit model performed in {}, count: {}.", time, count);
     }
 
     return tripPatternForDates;

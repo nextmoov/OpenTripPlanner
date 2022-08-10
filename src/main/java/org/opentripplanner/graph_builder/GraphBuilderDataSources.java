@@ -1,19 +1,19 @@
 package org.opentripplanner.graph_builder;
 
-import static org.opentripplanner.datastore.FileType.DEM;
-import static org.opentripplanner.datastore.FileType.GTFS;
-import static org.opentripplanner.datastore.FileType.NETEX;
-import static org.opentripplanner.datastore.FileType.OSM;
+import static org.opentripplanner.datastore.api.FileType.DEM;
+import static org.opentripplanner.datastore.api.FileType.GTFS;
+import static org.opentripplanner.datastore.api.FileType.NETEX;
+import static org.opentripplanner.datastore.api.FileType.OSM;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import java.io.File;
 import java.util.EnumSet;
 import java.util.Set;
-import org.opentripplanner.datastore.CompositeDataSource;
-import org.opentripplanner.datastore.DataSource;
-import org.opentripplanner.datastore.FileType;
 import org.opentripplanner.datastore.OtpDataStore;
+import org.opentripplanner.datastore.api.CompositeDataSource;
+import org.opentripplanner.datastore.api.DataSource;
+import org.opentripplanner.datastore.api.FileType;
 import org.opentripplanner.standalone.config.BuildConfig;
 import org.opentripplanner.standalone.config.CommandLineParameters;
 import org.opentripplanner.util.OtpAppException;
@@ -85,19 +85,19 @@ public class GraphBuilderDataSources {
    * @return {@code true} if and only if the data source exist, proper command line parameters is
    * set and not disabled by the loaded configuration files.
    */
-  boolean has(FileType type) {
+  public boolean has(FileType type) {
     return inputData.containsKey(type);
   }
 
-  Iterable<DataSource> get(FileType type) {
+  public Iterable<DataSource> get(FileType type) {
     return inputData.get(type);
   }
 
-  CompositeDataSource getBuildReportDir() {
+  public CompositeDataSource getBuildReportDir() {
     return store.getBuildReportDir();
   }
 
-  File getCacheDirectory() {
+  public File getCacheDirectory() {
     return cacheDirectory;
   }
 
